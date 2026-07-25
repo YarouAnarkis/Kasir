@@ -1,36 +1,100 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Kasir - Point of Sale (POS) Coffee Shop
 
-## Getting Started
+Aplikasi Web Kasir (Point of Sale) modern dan responsive untuk Coffee Shop. Dibuat menggunakan **Next.js 15+**, **TypeScript**, **Tailwind CSS**, **Prisma ORM**, dan **MySQL**.
 
-First, run the development server:
+## ☕ Fitur Utama
+
+1. **Transaksi Kasir (POS)**
+   - Katalong menu dalam tampilan grid card interaktif
+   - Filter menu berdasarkan kategori & pencarian kata kunci
+   - Keranjang belanja real-time (tambah/kurang Qty & hapus item)
+   - Toggle Service Charge / Pajak Resto (10%)
+   - Hitung otomatis subtotal, total harga, & kembalian uang tunai
+   - Tombol nominal cepat (Uang Pas, 20k, 50k, 100k)
+   - Modal Struk Penjualan thermal siap cetak (`window.print()`)
+
+2. **Manajemen Menu & Kategori**
+   - CRUD Menu (Tambah, Edit, Hapus, Lihat Menu)
+   - Atur status ketersediaan menu (*Tersedia* vs *Habis*)
+   - Input harga, kategori, & foto menu (URL)
+   - Kelola & tambah Kategori baru
+
+3. **Riwayat Transaksi**
+   - Daftar lengkap riwayat transaksi terurut dari terbaru
+   - Filter transaksi berdasarkan tanggal (Hari ini & Custom date)
+   - Summary total omset & total item terjual
+   - Rincian item pesanan & opsi cetak ulang struk
+
+4. **Dashboard Ringkasan**
+   - Statistik omset penjualan hari ini & jumlah transaksi
+   - Daftar **Top 5 Menu Terlaris** berdasarkan kuantitas penjualan
+   - Grafik penjualan visual 7 hari terakhir
+
+---
+
+## 🛠️ Tech Stack
+
+- **Framework**: Next.js 15+ (App Router, Server Actions)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **Database**: MySQL
+- **ORM**: Prisma ORM
+- **Icons**: Lucide React
+
+---
+
+## 🚀 Panduan Installasi & Persiapan Database
+
+### 1. Clone & Install Dependencies
+
+```bash
+npm install
+```
+
+### 2. Konfigurasi Database (.env)
+
+Buat file `.env` di root project (atau salin dari `.env.example`):
+
+```env
+DATABASE_URL="mysql://root:password@localhost:3306/kasir_db"
+```
+> Adjust `root`, `password`, `localhost`, and `kasir_db` according to your local MySQL environment.
+
+### 3. Migrasi Schema Database (Prisma)
+
+Jalankan perintah migrasi Prisma untuk membuat tabel database MySQL:
+
+```bash
+npx prisma migrate dev --name init
+```
+
+Atau untuk meng-generate Prisma Client:
+
+```bash
+npx prisma generate
+```
+
+### 4. Seed Data Awal (Kategori & Menu Sample)
+
+Untuk mengisi database awal dengan sampel menu Kopi, Non-Kopi, Makanan, & Snack:
+
+```bash
+npm run db:seed
+```
+
+### 5. Jalankan Aplikasi Web
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Buka browser di `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 📄 Struktur Schema Database
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `Kategori`: id, nama, createdAt, updatedAt
+- `Menu`: id, nama, harga, kategoriId, gambar, tersedia, createdAt, updatedAt
+- `Transaksi`: id, nomorStruk, tanggal, subtotal, pajak, totalHarga, dibayar, kembalian
+- `DetailTransaksi`: id, transaksiId, menuId, namaMenu, hargaSatuan, jumlah, subtotal

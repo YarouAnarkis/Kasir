@@ -1,0 +1,58 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Kategori {
+  id        Int      @id @default(autoincrement())
+  nama      String   @unique
+  menus     Menu[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Menu {
+  id              Int               @id @default(autoincrement())
+  nama            String
+  harga           Int
+  kategoriId      Int
+  kategori        Kategori          @relation(fields: [kategoriId], references: [id], onDelete: Cascade)
+  gambar          String?           @db.Text
+  tersedia        Boolean           @default(true)
+  detailTransaksi DetailTransaksi[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+model Transaksi {
+  id              Int               @id @default(autoincrement())
+  nomorStruk      String            @unique @default(uuid())
+  tanggal         DateTime          @default(now())
+  namaKasir       String            @default("Kasir Cafe")
+  metodePembayaran String           @default("TUNAI")
+  subtotal        Int
+  pajak           Int               @default(0)
+  totalHarga      Int
+  dibayar         Int
+  kembalian       Int
+  detailTransaksi DetailTransaksi[]
+  createdAt       DateTime          @default(now())
+}
+
+model DetailTransaksi {
+  id          Int       @id @default(autoincrement())
+  transaksiId Int
+  transaksi   Transaksi @relation(fields: [transaksiId], references: [id], onDelete: Cascade)
+  menuId      Int?
+  menu        Menu?     @relation(fields: [menuId], references: [id], onDelete: SetNull)
+  namaMenu    String
+  hargaSatuan Int
+  jumlah      Int
+  subtotal    Int
+}
