@@ -18,7 +18,12 @@ export const metadata: Metadata = {
   title: "Kasir Coffee Shop - Point of Sale Application",
   description: "Aplikasi Web Kasir (Point of Sale) modern untuk Coffee Shop dengan fitur Manajemen Menu, Transaksi Kasir, Cetak Struk, dan Riwayat Penjualan.",
   icons: {
-    icon: "/favicon.svg",
+    icon: [
+      { url: "/favicon.svg?v=2", type: "image/svg+xml" },
+      { url: "/icon?v=2", type: "image/png" },
+    ],
+    shortcut: "/favicon.svg?v=2",
+    apple: "/icon?v=2",
   },
 };
 
