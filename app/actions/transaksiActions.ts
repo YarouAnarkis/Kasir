@@ -73,6 +73,7 @@ export async function createTransaksi(payload: CreateTransaksiPayload) {
       },
     });
 
+    // Revalidate paths for instant client cache invalidation
     revalidatePath("/");
     revalidatePath("/riwayat");
     revalidatePath("/dashboard");
@@ -144,33 +145,53 @@ export async function getDashboardStats() {
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
 
-    // Today's stats
-    const todayTransactions = await prisma.transaksi.findMany({
-      where: {
-        tanggal: {
-          gte: todayStart,
-          lte: todayEnd,
-        },
-      },
-    });
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    // Parallel concurrent execution of all 4 dashboard queries
+    const [todayTransactions, topItemsRaw, recentTransactions, totalSemuaTransaksi] =
+      await Promise.all([
+        prisma.transaksi.findMany({
+          where: {
+            tanggal: {
+              gte: todayStart,
+              lte: todayEnd,
+            },
+          },
+          select: {
+            totalHarga: true,
+          },
+        }),
+        prisma.detailTransaksi.groupBy({
+          by: ["namaMenu"],
+          _sum: {
+            jumlah: true,
+            subtotal: true,
+          },
+          orderBy: {
+            _sum: {
+              jumlah: "desc",
+            },
+          },
+          take: 5,
+        }),
+        prisma.transaksi.findMany({
+          where: {
+            tanggal: {
+              gte: sevenDaysAgo,
+            },
+          },
+          select: {
+            tanggal: true,
+            totalHarga: true,
+          },
+        }),
+        prisma.transaksi.count(),
+      ]);
 
     const totalHariIni = todayTransactions.reduce((acc, t) => acc + t.totalHarga, 0);
     const jumlahTransaksiHariIni = todayTransactions.length;
-
-    // Top selling items
-    const topItemsRaw = await prisma.detailTransaksi.groupBy({
-      by: ["namaMenu"],
-      _sum: {
-        jumlah: true,
-        subtotal: true,
-      },
-      orderBy: {
-        _sum: {
-          jumlah: "desc",
-        },
-      },
-      take: 5,
-    });
 
     const topItems = topItemsRaw.map((item) => ({
       nama: item.namaMenu,
@@ -178,24 +199,7 @@ export async function getDashboardStats() {
       totalPendapatan: item._sum.subtotal || 0,
     }));
 
-    // Last 7 days sales for chart
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
-    sevenDaysAgo.setHours(0, 0, 0, 0);
-
-    const recentTransactions = await prisma.transaksi.findMany({
-      where: {
-        tanggal: {
-          gte: sevenDaysAgo,
-        },
-      },
-      select: {
-        tanggal: true,
-        totalHarga: true,
-      },
-    });
-
-    // Group by date
+    // Group sales by date for 7-day chart
     const dailyMap: Record<string, number> = {};
     for (let i = 0; i < 7; i++) {
       const d = new Date(sevenDaysAgo);
@@ -220,9 +224,6 @@ export async function getDashboardStats() {
       }),
       total,
     }));
-
-    // Total all time revenue & transactions
-    const totalSemuaTransaksi = await prisma.transaksi.count();
 
     return {
       success: true,

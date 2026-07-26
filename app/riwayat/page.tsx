@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import RiwayatTransaksi from "@/components/RiwayatTransaksi";
 
-export const revalidate = 0; // Dynamic server rendering
+export const revalidate = 10; // Incremental Static Revalidation with instant Server Action revalidatePath
 
 export default async function RiwayatPage() {
   let transactions: any[] = [];

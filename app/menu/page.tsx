@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import MenuManagement from "@/components/MenuManagement";
 
-export const revalidate = 0; // Dynamic server rendering
+export const revalidate = 10; // Incremental Static Revalidation with instant Server Action revalidatePath
 
 export default async function MenuPage() {
   let menus: any[] = [];

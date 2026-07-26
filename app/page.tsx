@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import KasirPOS from "@/components/KasirPOS";
 
-export const revalidate = 0; // Dynamic server rendering
+export const revalidate = 10; // Incremental Static Revalidation with instant Server Action revalidatePath
 
 export default async function TransaksiPage() {
   let menus: any[] = [];
