@@ -18,11 +18,20 @@ export async function GET(request: NextRequest) {
 
     const where: any = { isVoid: false };
 
-    if (startDate) {
+    // Flexible Date Range Logic (Custom range e.g. 25 Mei 2026 - 30 Mei 2026)
+    if (startDate && endDate) {
       const start = new Date(startDate);
       start.setHours(0, 0, 0, 0);
 
-      const end = endDate ? new Date(endDate) : new Date(startDate);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+
+      where.tanggal = { gte: start, lte: end };
+    } else if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+
+      const end = new Date(startDate);
       end.setHours(23, 59, 59, 999);
 
       where.tanggal = { gte: start, lte: end };
@@ -78,12 +87,19 @@ export async function GET(request: NextRequest) {
     titleCell.alignment = { horizontal: "center", vertical: "middle" };
     summarySheet.getRow(1).height = 35;
 
-    // Filters Info
+    // Formatted Period Display
+    let periodText = "Semua Tanggal (Keseluruhan)";
+    if (startDate && endDate) {
+      const sFormatted = new Date(startDate).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+      const eFormatted = new Date(endDate).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+      periodText = `${sFormatted} s/d ${eFormatted}`;
+    } else if (startDate) {
+      periodText = new Date(startDate).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+    }
+
     summarySheet.getCell("A3").value = "Periode Laporan:";
     summarySheet.getCell("A3").font = { bold: true };
-    summarySheet.getCell("B3").value = startDate
-      ? `${startDate} s/d ${endDate || startDate}`
-      : "Semua Tanggal";
+    summarySheet.getCell("B3").value = periodText;
 
     summarySheet.getCell("A4").value = "Tanggal Ditarik:";
     summarySheet.getCell("A4").font = { bold: true };

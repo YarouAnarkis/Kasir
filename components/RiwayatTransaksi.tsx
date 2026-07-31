@@ -19,7 +19,9 @@ import {
   AlertCircle,
   CheckCircle,
   Filter,
-  X
+  X,
+  Calendar,
+  Download
 } from "lucide-react";
 
 interface DetailItem {
@@ -69,6 +71,12 @@ export default function RiwayatTransaksi({
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptData | null>(null);
   const [isFiltering, setIsFiltering] = useState<boolean>(false);
 
+  // Export Excel Modal State
+  const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
+  const [exportStartDate, setExportStartDate] = useState<string>("");
+  const [exportEndDate, setExportEndDate] = useState<string>("");
+  const [exportJenis, setExportJenis] = useState<string>("all");
+
   // Void Modal State
   const [voidModalTx, setVoidModalTx] = useState<TransaksiItem | null>(null);
   const [voidReason, setVoidReason] = useState("");
@@ -109,12 +117,43 @@ export default function RiwayatTransaksi({
     setExpandedId((prev) => (prev === id ? null : id));
   };
 
-  const handleExportExcel = () => {
+  // Quick Date Preset Handlers for Excel Export Modal
+  const applyExportPreset = (preset: "ALL" | "1DAY" | "7DAYS" | "30DAYS") => {
+    const today = new Date();
+    const endDateStr = today.toISOString().split("T")[0];
+
+    if (preset === "ALL") {
+      setExportStartDate("");
+      setExportEndDate("");
+    } else if (preset === "1DAY") {
+      const d = new Date(today);
+      d.setDate(d.getDate() - 1);
+      const startDateStr = d.toISOString().split("T")[0];
+      setExportStartDate(startDateStr);
+      setExportEndDate(endDateStr);
+    } else if (preset === "7DAYS") {
+      const d = new Date(today);
+      d.setDate(d.getDate() - 6);
+      const startDateStr = d.toISOString().split("T")[0];
+      setExportStartDate(startDateStr);
+      setExportEndDate(endDateStr);
+    } else if (preset === "30DAYS") {
+      const d = new Date(today);
+      d.setDate(d.getDate() - 29);
+      const startDateStr = d.toISOString().split("T")[0];
+      setExportStartDate(startDateStr);
+      setExportEndDate(endDateStr);
+    }
+  };
+
+  const handleDownloadExcel = () => {
     const queryParams = new URLSearchParams();
-    if (filterDate) queryParams.set("startDate", filterDate);
-    if (filterJenis && filterJenis !== "all") queryParams.set("jenisTransaksi", filterJenis);
+    if (exportStartDate) queryParams.set("startDate", exportStartDate);
+    if (exportEndDate) queryParams.set("endDate", exportEndDate);
+    if (exportJenis && exportJenis !== "all") queryParams.set("jenisTransaksi", exportJenis);
 
     window.open(`/api/export-excel?${queryParams.toString()}`, "_blank");
+    setIsExportModalOpen(false);
   };
 
   const handleConfirmVoid = (e: React.FormEvent) => {
@@ -176,7 +215,7 @@ export default function RiwayatTransaksi({
           {isCanExportAndVoid && (
             <button
               type="button"
-              onClick={handleExportExcel}
+              onClick={() => setIsExportModalOpen(true)}
               className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-800 hover:from-emerald-500 hover:to-emerald-700 text-white font-extrabold text-xs sm:text-sm rounded-2xl shadow-lg transition-all duration-200 flex items-center gap-2 cursor-pointer border border-emerald-500/40"
             >
               <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
@@ -462,6 +501,132 @@ export default function RiwayatTransaksi({
           </div>
         )}
       </div>
+
+      {/* Modal Filter Export Excel Date Range */}
+      {isExportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/75 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl border border-stone-200 w-full max-w-lg overflow-hidden flex flex-col">
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-950 via-stone-900 to-emerald-950 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center border border-emerald-500/30">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-stone-100">Export Laporan Excel (.xlsx)</h3>
+                  <p className="text-[11px] text-emerald-200">Pilih preset atau rentang tanggal kustom</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsExportModalOpen(false)}
+                className="text-stone-400 hover:text-white p-1 rounded-full cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Preset Buttons */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-stone-700">Pilih Preset Cepat Tanggal:</label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => applyExportPreset("ALL")}
+                    className="px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold text-xs rounded-xl border border-stone-200 transition-colors cursor-pointer text-center"
+                  >
+                    Semua Tanggal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyExportPreset("1DAY")}
+                    className="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs rounded-xl border border-amber-200 transition-colors cursor-pointer text-center"
+                  >
+                    1 Hari / Kemarin
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyExportPreset("7DAYS")}
+                    className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 font-bold text-xs rounded-xl border border-emerald-200 transition-colors cursor-pointer text-center"
+                  >
+                    Seminggu (7 Hari)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyExportPreset("30DAYS")}
+                    className="px-3 py-2 bg-purple-50 hover:bg-purple-100 text-purple-900 font-bold text-xs rounded-xl border border-purple-200 transition-colors cursor-pointer text-center"
+                  >
+                    Sebulan (30 Hari)
+                  </button>
+                </div>
+              </div>
+
+              {/* Custom Date Range Picker */}
+              <div className="p-4 bg-stone-50 border border-stone-200 rounded-2xl space-y-3">
+                <span className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-emerald-700" /> Rentang Tanggal Kustom (Misal: 25 Mei - 30 Mei 2026)
+                </span>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-bold text-stone-600">Tanggal Mulai</label>
+                    <input
+                      type="date"
+                      value={exportStartDate}
+                      onChange={(e) => setExportStartDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-stone-300 rounded-xl text-xs font-bold text-stone-900 focus:outline-none focus:border-emerald-600"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-bold text-stone-600">Tanggal Selesai</label>
+                    <input
+                      type="date"
+                      value={exportEndDate}
+                      onChange={(e) => setExportEndDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-stone-300 rounded-xl text-xs font-bold text-stone-900 focus:outline-none focus:border-emerald-600"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Filter Jenis Transaksi */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-stone-700">Jenis Transaksi Di-export</label>
+                <select
+                  value={exportJenis}
+                  onChange={(e) => setExportJenis(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs font-bold text-stone-900 focus:outline-none focus:border-emerald-600"
+                >
+                  <option value="all">Semua Transaksi (Pelanggan & Karyawan)</option>
+                  <option value="regular">Hanya Pembelian Pelanggan (Reguler)</option>
+                  <option value="karyawan">Hanya Pesanan Karyawan (Free Order)</option>
+                </select>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-stone-100">
+                <button
+                  type="button"
+                  onClick={() => setIsExportModalOpen(false)}
+                  className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs rounded-xl cursor-pointer"
+                >
+                  Batal
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadExcel}
+                  className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-800 hover:from-emerald-500 hover:to-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download File Excel</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Confirm Void */}
       {voidModalTx && (
