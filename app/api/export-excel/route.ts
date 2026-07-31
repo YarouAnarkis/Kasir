@@ -67,26 +67,6 @@ export async function GET(request: NextRequest) {
     workbook.creator = "Kasir Coffee Shop System";
     workbook.created = new Date();
 
-    // ----------------------------------------------------
-    // SHEET 1: RINGKASAN TOTAL & PERKINERJAAN KASIR
-    // ----------------------------------------------------
-    const summarySheet = workbook.addWorksheet("Ringkasan & Kinerja Kasir", {
-      views: [{ showGridLines: true }],
-    });
-
-    // Title Header Banner
-    summarySheet.mergeCells("A1:F1");
-    const titleCell = summarySheet.getCell("A1");
-    titleCell.value = "LAPORAN RINGKASAN PENJUALAN & RIWAYAT PENANGGUNG JAWAB KASIR";
-    titleCell.font = { name: "Arial", size: 14, bold: true, color: { argb: "FFFFFFFF" } };
-    titleCell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: "FF2D1B10" },
-    };
-    titleCell.alignment = { horizontal: "center", vertical: "middle" };
-    summarySheet.getRow(1).height = 35;
-
     // Formatted Period Display
     let periodText = "Semua Tanggal (Keseluruhan)";
     if (startDate && endDate) {
@@ -96,6 +76,299 @@ export async function GET(request: NextRequest) {
     } else if (startDate) {
       periodText = new Date(startDate).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
     }
+
+    // ----------------------------------------------------
+    // SHEET 1: RIWAYAT LENGKAP TRANSAKSI (PRIMARY SHEET)
+    // ----------------------------------------------------
+    const mainSheet = workbook.addWorksheet("Riwayat Lengkap Transaksi", {
+      views: [{ showGridLines: true }],
+    });
+
+    // Title Header Banner
+    mainSheet.mergeCells("A1:M1");
+    const titleCell = mainSheet.getCell("A1");
+    titleCell.value = "LAPORAN RIWAYAT LENGKAP TRANSAKSI PEMBELIAN KOPI & MAKANAN";
+    titleCell.font = { name: "Arial", size: 14, bold: true, color: { argb: "FFFFFFFF" } };
+    titleCell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF2D1B10" },
+    };
+    titleCell.alignment = { horizontal: "center", vertical: "middle" };
+    mainSheet.getRow(1).height = 35;
+
+    // Filter Metadata
+    mainSheet.getCell("A3").value = "Periode Laporan:";
+    mainSheet.getCell("A3").font = { bold: true };
+    mainSheet.getCell("B3").value = periodText;
+
+    mainSheet.getCell("A4").value = "Tanggal Ditarik:";
+    mainSheet.getCell("A4").font = { bold: true };
+    mainSheet.getCell("B4").value = new Date().toLocaleString("id-ID");
+
+    // Table Header
+    const mainHeaderRow = mainSheet.getRow(6);
+    mainHeaderRow.values = [
+      "Tanggal Transaksi",
+      "Jam Transaksi (HH:mm:ss)",
+      "No. Struk",
+      "Jenis Transaksi",
+      "Kasir Penanggung Jawab",
+      "Penerima Karyawan",
+      "Menu Dipesan",
+      "Jumlah Qty",
+      "Harga Satuan (Rp)",
+      "Promo / Diskon",
+      "Subtotal Item (Rp)",
+      "Total Struk (Rp)",
+      "Metode Pembayaran",
+    ];
+
+    mainHeaderRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    mainHeaderRow.height = 28;
+    mainHeaderRow.eachCell((cell) => {
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFC25E00" },
+      };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+    });
+
+    let mainRowIdx = 7;
+
+    transactions.forEach((t) => {
+      const dObj = new Date(t.tanggal);
+      const dateStr = dObj.toLocaleDateString("id-ID");
+      const timeStr = dObj.toLocaleTimeString("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+
+      const kasirNama = t.namaKasir || t.kasir?.nama || "Kasir Cafe";
+      const isKaryawan = t.jenisTransaksi === "karyawan";
+      const penerimaNama = isKaryawan ? t.namaKaryawan || t.karyawan?.nama || "Karyawan Store" : "-";
+      const jenisLabel = isKaryawan ? "PESAN KARYAWAN (FREE)" : "PELANGGAN REGULER";
+
+      t.detailTransaksi.forEach((d) => {
+        const row = mainSheet.getRow(mainRowIdx);
+        row.values = [
+          dateStr,
+          timeStr,
+          t.nomorStruk,
+          jenisLabel,
+          kasirNama,
+          penerimaNama,
+          d.namaMenu,
+          d.jumlah,
+          d.hargaAsli > 0 ? d.hargaAsli : d.hargaSatuan,
+          d.namaPromo || "-",
+          d.subtotal,
+          t.totalHarga,
+          t.metodePembayaran,
+        ];
+
+        row.getCell(8).numFmt = "#,##0";
+        row.getCell(9).numFmt = "Rp #,##0";
+        row.getCell(11).numFmt = "Rp #,##0";
+        row.getCell(12).numFmt = "Rp #,##0";
+
+        mainRowIdx++;
+      });
+    });
+
+    mainSheet.columns.forEach((col, idx) => {
+      if (idx === 0 || idx === 1) col.width = 18;
+      else if (idx === 2) col.width = 24;
+      else if (idx === 3) col.width = 24;
+      else if (idx === 4 || idx === 5) col.width = 26;
+      else if (idx === 6) col.width = 30;
+      else col.width = 18;
+    });
+
+    // ----------------------------------------------------
+    // SHEET 2: PEMBELIAN PELANGGAN (REGULER)
+    // ----------------------------------------------------
+    const custSheet = workbook.addWorksheet("Pembelian Pelanggan", {
+      views: [{ showGridLines: true }],
+    });
+
+    const custHeaderRow = custSheet.getRow(1);
+    custHeaderRow.values = [
+      "Tanggal",
+      "Jam Pembelian (HH:mm:ss)",
+      "No. Struk",
+      "Kasir Penanggung Jawab",
+      "Nama Menu Item",
+      "Jumlah Qty",
+      "Harga Asli (Rp)",
+      "Promo Dipakai",
+      "Harga Diskon (Rp)",
+      "Subtotal Item (Rp)",
+      "Total Struk (Rp)",
+      "Metode Pembayaran",
+    ];
+
+    custHeaderRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    custHeaderRow.height = 26;
+    custHeaderRow.eachCell((cell) => {
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF2D1B10" },
+      };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+    });
+
+    let custRowIdx = 2;
+
+    transactions
+      .filter((t) => t.jenisTransaksi !== "karyawan")
+      .forEach((t) => {
+        const dObj = new Date(t.tanggal);
+        const dateStr = dObj.toLocaleDateString("id-ID");
+        const timeStr = dObj.toLocaleTimeString("id-ID", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+
+        const kasirNama = t.namaKasir || t.kasir?.nama || "Kasir Cafe";
+
+        t.detailTransaksi.forEach((d) => {
+          const row = custSheet.getRow(custRowIdx);
+          row.values = [
+            dateStr,
+            timeStr,
+            t.nomorStruk,
+            kasirNama,
+            d.namaMenu,
+            d.jumlah,
+            d.hargaAsli > 0 ? d.hargaAsli : d.hargaSatuan,
+            d.namaPromo || "-",
+            d.hargaSatuan,
+            d.subtotal,
+            t.totalHarga,
+            t.metodePembayaran,
+          ];
+
+          row.getCell(6).numFmt = "#,##0";
+          row.getCell(7).numFmt = "Rp #,##0";
+          row.getCell(9).numFmt = "Rp #,##0";
+          row.getCell(10).numFmt = "Rp #,##0";
+          row.getCell(11).numFmt = "Rp #,##0";
+
+          custRowIdx++;
+        });
+      });
+
+    custSheet.columns.forEach((col, idx) => {
+      if (idx === 0 || idx === 1) col.width = 18;
+      else if (idx === 2) col.width = 24;
+      else if (idx === 3 || idx === 4) col.width = 28;
+      else col.width = 18;
+    });
+
+    // ----------------------------------------------------
+    // SHEET 3: PESANAN KARYAWAN (FREE ORDER)
+    // ----------------------------------------------------
+    const empSheet = workbook.addWorksheet("Pesanan Karyawan", {
+      views: [{ showGridLines: true }],
+    });
+
+    const empHeaderRow = empSheet.getRow(1);
+    empHeaderRow.values = [
+      "Tanggal",
+      "Jam Pembelian (HH:mm:ss)",
+      "No. Struk",
+      "Kasir Input",
+      "Karyawan Penerima",
+      "Nama Menu Item",
+      "Jumlah Qty",
+      "Harga Asli Item (Rp)",
+      "Nilai Beban Konsumsi (Rp)",
+      "Status Payment",
+    ];
+
+    empHeaderRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    empHeaderRow.height = 26;
+    empHeaderRow.eachCell((cell) => {
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFC25E00" },
+      };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+    });
+
+    let empRowIdx = 2;
+
+    transactions
+      .filter((t) => t.jenisTransaksi === "karyawan")
+      .forEach((t) => {
+        const dObj = new Date(t.tanggal);
+        const dateStr = dObj.toLocaleDateString("id-ID");
+        const timeStr = dObj.toLocaleTimeString("id-ID", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+
+        const kasirNama = t.namaKasir || t.kasir?.nama || "Kasir Cafe";
+        const penerimaNama = t.namaKaryawan || t.karyawan?.nama || "Karyawan";
+
+        t.detailTransaksi.forEach((d) => {
+          const row = empSheet.getRow(empRowIdx);
+          const itemNilai = d.hargaAsli > 0 ? d.hargaAsli * d.jumlah : d.hargaSatuan * d.jumlah;
+
+          row.values = [
+            dateStr,
+            timeStr,
+            t.nomorStruk,
+            kasirNama,
+            penerimaNama,
+            d.namaMenu,
+            d.jumlah,
+            d.hargaAsli > 0 ? d.hargaAsli : d.hargaSatuan,
+            itemNilai,
+            "FREE ORDER (Gratis)",
+          ];
+
+          row.getCell(7).numFmt = "#,##0";
+          row.getCell(8).numFmt = "Rp #,##0";
+          row.getCell(9).numFmt = "Rp #,##0";
+
+          empRowIdx++;
+        });
+      });
+
+    empSheet.columns.forEach((col, idx) => {
+      if (idx === 0 || idx === 1) col.width = 18;
+      else if (idx === 2) col.width = 24;
+      else if (idx === 3 || idx === 4 || idx === 5) col.width = 26;
+      else col.width = 18;
+    });
+
+    // ----------------------------------------------------
+    // SHEET 4: RINGKASAN TOTAL & PERKINERJAAN KASIR
+    // ----------------------------------------------------
+    const summarySheet = workbook.addWorksheet("Ringkasan & Kinerja Kasir", {
+      views: [{ showGridLines: true }],
+    });
+
+    // Title Header Banner
+    summarySheet.mergeCells("A1:F1");
+    const summaryTitleCell = summarySheet.getCell("A1");
+    summaryTitleCell.value = "LAPORAN RINGKASAN PENJUALAN & KINERJA PENANGGUNG JAWAB KASIR";
+    summaryTitleCell.font = { name: "Arial", size: 14, bold: true, color: { argb: "FFFFFFFF" } };
+    summaryTitleCell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF2D1B10" },
+    };
+    summaryTitleCell.alignment = { horizontal: "center", vertical: "middle" };
+    summarySheet.getRow(1).height = 35;
 
     summarySheet.getCell("A3").value = "Periode Laporan:";
     summarySheet.getCell("A3").font = { bold: true };
@@ -260,169 +533,6 @@ export async function GET(request: NextRequest) {
 
     summarySheet.columns.forEach((col) => {
       col.width = 26;
-    });
-
-    // ----------------------------------------------------
-    // SHEET 2: PEMBELIAN PELANGGAN (REGULER)
-    // ----------------------------------------------------
-    const custSheet = workbook.addWorksheet("Pembelian Pelanggan", {
-      views: [{ showGridLines: true }],
-    });
-
-    const custHeaderRow = custSheet.getRow(1);
-    custHeaderRow.values = [
-      "Tanggal",
-      "Jam Pembelian (HH:mm:ss)",
-      "No. Struk",
-      "Kasir Penanggung Jawab",
-      "Nama Menu Item",
-      "Jumlah Qty",
-      "Harga Asli (Rp)",
-      "Promo Dipakai",
-      "Harga Diskon (Rp)",
-      "Subtotal Item (Rp)",
-      "Total Struk (Rp)",
-      "Metode Pembayaran",
-    ];
-
-    custHeaderRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
-    custHeaderRow.height = 26;
-    custHeaderRow.eachCell((cell) => {
-      cell.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: "FF2D1B10" },
-      };
-      cell.alignment = { horizontal: "center", vertical: "middle" };
-    });
-
-    let custRowIdx = 2;
-
-    transactions
-      .filter((t) => t.jenisTransaksi !== "karyawan")
-      .forEach((t) => {
-        const dObj = new Date(t.tanggal);
-        const dateStr = dObj.toLocaleDateString("id-ID");
-        const timeStr = dObj.toLocaleTimeString("id-ID", {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        });
-
-        const kasirNama = t.namaKasir || t.kasir?.nama || "Kasir Cafe";
-
-        t.detailTransaksi.forEach((d) => {
-          const row = custSheet.getRow(custRowIdx);
-          row.values = [
-            dateStr,
-            timeStr,
-            t.nomorStruk,
-            kasirNama,
-            d.namaMenu,
-            d.jumlah,
-            d.hargaAsli > 0 ? d.hargaAsli : d.hargaSatuan,
-            d.namaPromo || "-",
-            d.hargaSatuan,
-            d.subtotal,
-            t.totalHarga,
-            t.metodePembayaran,
-          ];
-
-          row.getCell(6).numFmt = "#,##0";
-          row.getCell(7).numFmt = "Rp #,##0";
-          row.getCell(9).numFmt = "Rp #,##0";
-          row.getCell(10).numFmt = "Rp #,##0";
-          row.getCell(11).numFmt = "Rp #,##0";
-
-          custRowIdx++;
-        });
-      });
-
-    custSheet.columns.forEach((col, idx) => {
-      if (idx === 0 || idx === 1) col.width = 18;
-      else if (idx === 2) col.width = 24;
-      else if (idx === 3 || idx === 4) col.width = 28;
-      else col.width = 18;
-    });
-
-    // ----------------------------------------------------
-    // SHEET 3: PESANAN KARYAWAN (FREE ORDER)
-    // ----------------------------------------------------
-    const empSheet = workbook.addWorksheet("Pesanan Karyawan", {
-      views: [{ showGridLines: true }],
-    });
-
-    const empHeaderRow = empSheet.getRow(1);
-    empHeaderRow.values = [
-      "Tanggal",
-      "Jam Pembelian (HH:mm:ss)",
-      "No. Struk",
-      "Kasir Input",
-      "Karyawan Penerima",
-      "Nama Menu Item",
-      "Jumlah Qty",
-      "Harga Asli Item (Rp)",
-      "Nilai Beban Konsumsi (Rp)",
-      "Status Payment",
-    ];
-
-    empHeaderRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
-    empHeaderRow.height = 26;
-    empHeaderRow.eachCell((cell) => {
-      cell.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: "FFC25E00" },
-      };
-      cell.alignment = { horizontal: "center", vertical: "middle" };
-    });
-
-    let empRowIdx = 2;
-
-    transactions
-      .filter((t) => t.jenisTransaksi === "karyawan")
-      .forEach((t) => {
-        const dObj = new Date(t.tanggal);
-        const dateStr = dObj.toLocaleDateString("id-ID");
-        const timeStr = dObj.toLocaleTimeString("id-ID", {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        });
-
-        const kasirNama = t.namaKasir || t.kasir?.nama || "Kasir Cafe";
-        const penerimaNama = t.namaKaryawan || t.karyawan?.nama || "Karyawan";
-
-        t.detailTransaksi.forEach((d) => {
-          const row = empSheet.getRow(empRowIdx);
-          const itemNilai = d.hargaAsli > 0 ? d.hargaAsli * d.jumlah : d.hargaSatuan * d.jumlah;
-
-          row.values = [
-            dateStr,
-            timeStr,
-            t.nomorStruk,
-            kasirNama,
-            penerimaNama,
-            d.namaMenu,
-            d.jumlah,
-            d.hargaAsli > 0 ? d.hargaAsli : d.hargaSatuan,
-            itemNilai,
-            "FREE ORDER (Gratis)",
-          ];
-
-          row.getCell(7).numFmt = "#,##0";
-          row.getCell(8).numFmt = "Rp #,##0";
-          row.getCell(9).numFmt = "Rp #,##0";
-
-          empRowIdx++;
-        });
-      });
-
-    empSheet.columns.forEach((col, idx) => {
-      if (idx === 0 || idx === 1) col.width = 18;
-      else if (idx === 2) col.width = 24;
-      else if (idx === 3 || idx === 4 || idx === 5) col.width = 26;
-      else col.width = 18;
     });
 
     // Write buffer & respond
