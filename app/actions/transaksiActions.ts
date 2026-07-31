@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
-import { evaluateMenuPromo } from "@/lib/promoEngine";
+import { getActivePromosFromDb, evaluatePromoInMemory } from "@/lib/promoEngine";
 
 export interface CartItemPayload {
   menuId: number;
@@ -45,30 +45,39 @@ export async function createTransaksi(payload: CreateTransaksiPayload) {
 
     const isKaryawanOrder = jenisTransaksi === "karyawan";
 
+    // Point 4: Eliminate N+1 DB queries by batching menu & promo lookups in parallel
+    const menuIds = Array.from(new Set(items.map((i) => i.menuId)));
+
+    const [dbMenus, activePromos] = await Promise.all([
+      prisma.menu.findMany({
+        where: { id: { in: menuIds } },
+      }),
+      isKaryawanOrder ? Promise.resolve([]) : getActivePromosFromDb(),
+    ]);
+
+    const dbMenuMap = new Map(dbMenus.map((m) => [m.id, m]));
+
     let calculatedSubtotal = 0;
     let totalHargaAsliSum = 0;
     let totalDiskonSum = 0;
 
     const processedDetailItems = [];
 
-    // Evaluate promo & calculate prices for each cart item
+    // Evaluate in memory (0 DB queries in loop)
     for (const item of items) {
       if (item.jumlah <= 0) {
         return { success: false, error: `Jumlah item ${item.namaMenu} harus lebih dari 0` };
       }
 
-      // Fetch menu to ensure current price & category
-      const dbMenu = await prisma.menu.findUnique({
-        where: { id: item.menuId },
-      });
+      const dbMenu = dbMenuMap.get(item.menuId);
 
       const hargaNormal = dbMenu ? dbMenu.harga : item.hargaSatuan;
       const mKategoriId = dbMenu ? dbMenu.kategoriId : item.kategoriId || 0;
 
-      // Evaluate dynamic promo
+      // In-memory promo evaluation
       const promoResult = isKaryawanOrder
         ? null
-        : await evaluateMenuPromo(item.menuId, hargaNormal, mKategoriId);
+        : evaluatePromoInMemory(item.menuId, hargaNormal, mKategoriId, activePromos);
 
       const unitHargaFinal = isKaryawanOrder
         ? 0
@@ -203,6 +212,7 @@ export async function getTransaksiHistory(
   }
 }
 
+// Point 6: Mandatory void reason requirement
 export async function voidTransaksiAction(id: number, reason: string) {
   try {
     const session = await getSession();
@@ -211,7 +221,7 @@ export async function voidTransaksiAction(id: number, reason: string) {
     }
 
     if (!reason || !reason.trim()) {
-      return { success: false, error: "Alasan pembatalan (Void) wajib diisi" };
+      return { success: false, error: "Alasan pembatalan (Void) wajib diisi!" };
     }
 
     const transaction = await prisma.transaksi.findUnique({ where: { id } });

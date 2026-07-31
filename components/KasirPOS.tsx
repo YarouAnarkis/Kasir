@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { getMenuList } from "@/app/actions/menuActions";
 import { createTransaksi, getKaryawanListAction } from "@/app/actions/transaksiActions";
+import { getCurrentUserAction, verifyAdminPasswordAction } from "@/app/actions/authActions";
 import ReceiptModal, { ReceiptData } from "@/components/ReceiptModal";
 import {
   Search,
@@ -27,7 +28,9 @@ import {
   CheckCircle2,
   CreditCard,
   UserCheck,
-  Tag
+  Tag,
+  ShieldCheck,
+  Lock
 } from "lucide-react";
 
 export interface Category {
@@ -76,24 +79,37 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [imgErrors, setImgErrors] = useState<Record<number, boolean>>({});
 
+  // Session User
+  const [currentUser, setCurrentUser] = useState<{ id: number; nama: string; role: string } | null>(null);
+
   // Cashier Name & Shift State
   const [namaKasir, setNamaKasir] = useState<string>("Budi");
 
-  // Feature #3: Employee Free Order State
+  // Point 2 & 3: Employee Order & Admin Password Auth State
   const [isEmployeeOrder, setIsEmployeeOrder] = useState<boolean>(false);
   const [karyawanList, setKaryawanList] = useState<KaryawanOption[]>([]);
   const [selectedKaryawanId, setSelectedKaryawanId] = useState<number | null>(null);
   const [customKaryawanNama, setCustomKaryawanNama] = useState<string>("");
+
+  // Point 3: Admin Auth Modal State
+  const [isAdminAuthModalOpen, setIsAdminAuthModalOpen] = useState<boolean>(false);
+  const [adminPasswordInput, setAdminPasswordInput] = useState<string>("");
+  const [adminAuthError, setAdminAuthError] = useState<string>("");
 
   // Payment Method & QRIS Modal State
   const [paymentMethod, setPaymentMethod] = useState<"TUNAI" | "QRIS">("TUNAI");
   const [isQrisModalOpen, setIsQrisModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedName = localStorage.getItem("kasir_nama");
-      if (savedName) setNamaKasir(savedName);
-    }
+    // Fetch active session user
+    const fetchSession = async () => {
+      const u = await getCurrentUserAction();
+      if (u) {
+        setCurrentUser(u);
+        setNamaKasir(u.nama);
+      }
+    };
+    fetchSession();
 
     // Fetch employee list for employee free order
     const fetchKaryawan = async () => {
@@ -227,24 +243,63 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
     }
   };
 
-  const handlePay = (overrideMethod?: "TUNAI" | "QRIS") => {
-    const method = overrideMethod || paymentMethod;
+  // Point 3: Trigger Admin Password Verification for Free Orders
+  const initiatePay = () => {
     setErrorMsg("");
-
     if (cart.length === 0) {
       setErrorMsg("Keranjang belanja masih kosong!");
       return;
     }
 
-    const selectedEmp = karyawanList.find((k) => k.id === selectedKaryawanId);
-    const targetKaryawanNama = selectedEmp
-      ? selectedEmp.nama
-      : customKaryawanNama.trim() || "Karyawan Cafe";
+    if (isEmployeeOrder) {
+      // Require Admin Authorization Password
+      setAdminPasswordInput("");
+      setAdminAuthError("");
+      setIsAdminAuthModalOpen(true);
+    } else if (paymentMethod === "QRIS") {
+      setIsQrisModalOpen(true);
+    } else {
+      executePayTransaction("TUNAI");
+    }
+  };
 
-    if (isEmployeeOrder && !selectedEmp && !customKaryawanNama.trim()) {
-      setErrorMsg("Mohon pilih atau tuliskan nama karyawan yang memesan!");
+  const handleAdminAuthSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminAuthError("");
+
+    if (!adminPasswordInput || !adminPasswordInput.trim()) {
+      setAdminAuthError("Password admin wajib diisi!");
       return;
     }
+
+    startTransition(async () => {
+      const verifyRes = await verifyAdminPasswordAction(adminPasswordInput);
+      if (verifyRes.success) {
+        setIsAdminAuthModalOpen(false);
+        executePayTransaction("TUNAI");
+      } else {
+        setAdminAuthError(verifyRes.error || "Password admin tidak valid");
+      }
+    });
+  };
+
+  const executePayTransaction = (overrideMethod?: "TUNAI" | "QRIS") => {
+    const method = overrideMethod || paymentMethod;
+    setErrorMsg("");
+
+    // Point 2: Lock receiver to self if regular karyawan
+    const isKaryawanRole = currentUser?.role === "karyawan";
+    const selectedEmp = karyawanList.find((k) => k.id === selectedKaryawanId);
+
+    const targetKaryawanNama = isKaryawanRole
+      ? currentUser?.nama || "Karyawan"
+      : selectedEmp
+      ? selectedEmp.nama
+      : customKaryawanNama.trim() || "Karyawan Store";
+
+    const targetKaryawanId = isKaryawanRole
+      ? currentUser?.id
+      : selectedKaryawanId || undefined;
 
     const effectiveDibayar = isEmployeeOrder ? 0 : method === "QRIS" ? totalHarga : dibayarNum;
 
@@ -267,10 +322,10 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
         })),
         pajak,
         dibayar: effectiveDibayar,
-        namaKasir: namaKasir || "Kasir Cafe",
+        namaKasir: currentUser?.nama || namaKasir || "Kasir Cafe",
         metodePembayaran: isEmployeeOrder ? "FREE ORDER" : method,
         jenisTransaksi: isEmployeeOrder ? "karyawan" : "regular",
-        karyawanId: isEmployeeOrder && selectedKaryawanId ? selectedKaryawanId : undefined,
+        karyawanId: isEmployeeOrder ? targetKaryawanId : undefined,
         namaKaryawan: isEmployeeOrder ? targetKaryawanNama : undefined,
       });
 
@@ -292,6 +347,7 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
           detailTransaksi: res.data.detailTransaksi,
         });
         setIsQrisModalOpen(false);
+        setIsEmployeeOrder(false);
         clearCart();
       } else {
         setErrorMsg(res.error || "Gagal memproses transaksi");
@@ -507,7 +563,7 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
               )}
             </div>
 
-            {/* Feature #3: Employee Order Toggle */}
+            {/* Feature #3: Employee Order Toggle & Point 2 Lock */}
             <div className="p-3.5 bg-amber-50/70 border-b border-amber-200/80 space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-extrabold text-amber-950 flex items-center gap-1.5 cursor-pointer">
@@ -532,8 +588,15 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
 
               {isEmployeeOrder && (
                 <div className="pt-2 border-t border-amber-200/60 space-y-2 animate-in fade-in duration-200">
-                  <p className="text-[11px] font-bold text-amber-900">Pilih / Nama Karyawan Penerima:</p>
-                  {karyawanList.length > 0 ? (
+                  <p className="text-[11px] font-bold text-amber-900">Penerima Konsumsi Karyawan:</p>
+
+                  {/* Point 2: Lock receiver to logged-in user if role is regular karyawan */}
+                  {currentUser?.role === "karyawan" ? (
+                    <div className="p-2.5 bg-amber-100 border border-amber-300 rounded-xl text-xs font-extrabold text-amber-950 flex items-center justify-between">
+                      <span>👤 {currentUser.nama} (Akun Anda)</span>
+                      <span className="text-[9px] bg-amber-800 text-white px-2 py-0.5 rounded-full uppercase">Terkunci</span>
+                    </div>
+                  ) : karyawanList.length > 0 ? (
                     <select
                       value={selectedKaryawanId || ""}
                       onChange={(e) => setSelectedKaryawanId(Number(e.target.value))}
@@ -555,7 +618,7 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
                     />
                   )}
                   <span className="text-[10px] text-amber-800 block italic">
-                    ★ Total transaksi otomatis menjadi Rp 0 (Gratis), tercatat terpisah untuk audit internal.
+                    🔒 Memerlukan Password Otorisasi Admin untuk konfirmasi pembayaran Rp 0.
                   </span>
                 </div>
               )}
@@ -636,7 +699,6 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
             {/* Payment Summary Footer */}
             {cart.length > 0 && (
               <div className="p-4 bg-stone-50/90 border-t border-stone-200 space-y-3">
-                {/* Tax toggle */}
                 {!isEmployeeOrder && (
                   <div className="flex items-center justify-between text-xs font-semibold text-stone-700">
                     <label htmlFor="tax-toggle" className="flex items-center gap-1.5 cursor-pointer">
@@ -653,7 +715,6 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
                   </div>
                 )}
 
-                {/* Subtotal & Tax Rows */}
                 <div className="space-y-1 text-xs text-stone-600">
                   <div className="flex justify-between">
                     <span>Subtotal Pesanan</span>
@@ -676,7 +737,6 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
                   </div>
                 </div>
 
-                {/* Payment Method Selector */}
                 {!isEmployeeOrder && (
                   <div className="space-y-2 pt-1">
                     <label className="block text-[11px] font-bold text-stone-600 uppercase tracking-wider">
@@ -713,7 +773,6 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
                   </div>
                 )}
 
-                {/* Cash payment inputs */}
                 {!isEmployeeOrder && paymentMethod === "TUNAI" && (
                   <div className="space-y-2 pt-1">
                     <div className="space-y-1">
@@ -732,7 +791,6 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
                       />
                     </div>
 
-                    {/* Quick nominal buttons */}
                     <div className="grid grid-cols-4 gap-1.5">
                       <button
                         type="button"
@@ -764,7 +822,6 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
                       </button>
                     </div>
 
-                    {/* Kembalian info */}
                     <div className="flex justify-between items-center text-xs font-bold bg-amber-50 p-2.5 rounded-xl border border-amber-200 text-amber-950">
                       <span>Kembalian:</span>
                       <span className="text-sm font-black font-mono">
@@ -777,15 +834,7 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
                 {/* Submit Pay Button */}
                 <button
                   type="button"
-                  onClick={() => {
-                    if (isEmployeeOrder) {
-                      handlePay("TUNAI");
-                    } else if (paymentMethod === "QRIS") {
-                      setIsQrisModalOpen(true);
-                    } else {
-                      handlePay("TUNAI");
-                    }
-                  }}
+                  onClick={initiatePay}
                   disabled={isPending}
                   className={`w-full py-3.5 font-extrabold text-sm rounded-2xl shadow-lg flex items-center justify-center gap-2 transition-all cursor-pointer ${
                     isEmployeeOrder
@@ -801,7 +850,7 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
                   ) : isEmployeeOrder ? (
                     <>
                       <UserCheck className="w-4 h-4 text-amber-300" />
-                      <span>Proses Pesan Karyawan (Free)</span>
+                      <span>Proses Pesan Karyawan (Butuh Otorisasi Admin)</span>
                     </>
                   ) : paymentMethod === "QRIS" ? (
                     <>
@@ -820,6 +869,84 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
           </div>
         </div>
       </div>
+
+      {/* Point 3: Admin Authorization Password Modal for Free Orders */}
+      {isAdminAuthModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl border border-stone-200 w-full max-w-md overflow-hidden flex flex-col">
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-950 to-stone-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-amber-500/20 text-amber-300 flex items-center justify-center border border-amber-500/30">
+                  <ShieldCheck className="w-5 h-5 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-stone-100">Otorisasi Admin Dibutuhkan</h3>
+                  <p className="text-[11px] text-amber-200">Pesan Karyawan (Free Order Rp 0)</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAdminAuthModalOpen(false)}
+                className="text-stone-400 hover:text-white p-1 rounded-full cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAdminAuthSubmit} className="p-6 space-y-4">
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 space-y-1">
+                <p className="font-bold flex items-center gap-1">
+                  <Lock className="w-3.5 h-3.5 text-amber-700" /> Konfirmasi Otorisasi Supervisor
+                </p>
+                <p>
+                  Setiap transaksi konsumsi karyawan bernilai Rp 0 wajib dikonfirmasi dengan memasukkan <strong>Password Admin / Super Admin</strong>.
+                </p>
+              </div>
+
+              {adminAuthError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs font-bold">
+                  ⚠️ {adminAuthError}
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-stone-700">Password Admin</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-stone-400">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="password"
+                    value={adminPasswordInput}
+                    onChange={(e) => setAdminPasswordInput(e.target.value)}
+                    placeholder="Masukkan password admin"
+                    className="w-full pl-10 pr-4 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-sm text-stone-900 font-bold focus:outline-none focus:border-amber-600"
+                    required
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAdminAuthModalOpen(false)}
+                  className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs rounded-xl cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPending}
+                  className="px-5 py-2.5 bg-gradient-to-r from-amber-700 to-amber-900 hover:from-amber-600 hover:to-amber-800 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {isPending ? "Memverifikasi..." : "Verifikasi & Proses Transaction"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* QRIS Scan Modal */}
       {isQrisModalOpen && (
@@ -858,7 +985,7 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
 
               <button
                 type="button"
-                onClick={() => handlePay("QRIS")}
+                onClick={() => executePayTransaction("QRIS")}
                 disabled={isPending}
                 className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
               >

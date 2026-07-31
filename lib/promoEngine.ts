@@ -37,39 +37,69 @@ export function isCurrentTimeInWindow(
 }
 
 /**
- * Evaluate active promo for a menu item based on current date & time
+ * Fetch all active promos ONCE to prevent N+1 query loops
  */
-export async function evaluateMenuPromo(
-  menuId: number,
-  hargaAsli: number,
-  kategoriId: number,
-  targetDate: Date = new Date()
-): Promise<EvaluatedPromo | null> {
+export async function getActivePromosFromDb() {
   try {
-    // Fetch all active promos
-    const activePromos = await prisma.promo.findMany({
+    return await prisma.promo.findMany({
       where: { aktif: true },
       include: {
         promoMenus: true,
       },
       orderBy: { createdAt: "desc" },
     });
+  } catch (err) {
+    console.error("Error fetching active promos:", err);
+    return [];
+  }
+}
 
-    if (activePromos.length === 0) return null;
+/**
+ * In-memory promo evaluation for a single item (Zero DB calls)
+ */
+export function evaluatePromoInMemory(
+  menuId: number,
+  hargaAsli: number,
+  kategoriId: number,
+  activePromos: any[],
+  targetDate: Date = new Date()
+): EvaluatedPromo | null {
+  if (!activePromos || activePromos.length === 0) return null;
 
-    let selectedPromo: any = null;
+  let selectedPromo: any = null;
 
-    // 1. High Priority: Specific Date Promos (e.g. 17 Agustus)
+  // 1. High Priority: Specific Date Promos (e.g. 17 Agustus)
+  for (const p of activePromos) {
+    if (p.tanggalMulai && p.tanggalSelesai) {
+      const start = new Date(p.tanggalMulai);
+      start.setHours(0, 0, 0, 0);
+
+      const end = new Date(p.tanggalSelesai);
+      end.setHours(23, 59, 59, 999);
+
+      if (targetDate >= start && targetDate <= end) {
+        if (p.berlakuUntuk === "semua") {
+          selectedPromo = p;
+          break;
+        } else if (p.berlakuUntuk === "kategori" && p.kategoriId === kategoriId) {
+          selectedPromo = p;
+          break;
+        } else if (
+          p.berlakuUntuk === "menu_tertentu" &&
+          p.promoMenus.some((pm: any) => pm.menuId === menuId)
+        ) {
+          selectedPromo = p;
+          break;
+        }
+      }
+    }
+  }
+
+  // 2. Second Priority: Recurring Hour Promos (e.g. Happy Hour 21:00 -> 00:00)
+  if (!selectedPromo) {
     for (const p of activePromos) {
-      if (p.tanggalMulai && p.tanggalSelesai) {
-        const start = new Date(p.tanggalMulai);
-        start.setHours(0, 0, 0, 0);
-
-        const end = new Date(p.tanggalSelesai);
-        end.setHours(23, 59, 59, 999);
-
-        if (targetDate >= start && targetDate <= end) {
-          // Check scope applicability
+      if (p.jamMulai && p.jamSelesai && !p.tanggalMulai) {
+        if (isCurrentTimeInWindow(targetDate, p.jamMulai, p.jamSelesai)) {
           if (p.berlakuUntuk === "semua") {
             selectedPromo = p;
             break;
@@ -78,7 +108,7 @@ export async function evaluateMenuPromo(
             break;
           } else if (
             p.berlakuUntuk === "menu_tertentu" &&
-            p.promoMenus.some((pm) => pm.menuId === menuId)
+            p.promoMenus.some((pm: any) => pm.menuId === menuId)
           ) {
             selectedPromo = p;
             break;
@@ -86,54 +116,41 @@ export async function evaluateMenuPromo(
         }
       }
     }
-
-    // 2. Second Priority: Recurring Hour Promos (e.g. Happy Hour 21:00 -> 00:00)
-    if (!selectedPromo) {
-      for (const p of activePromos) {
-        if (p.jamMulai && p.jamSelesai && !p.tanggalMulai) {
-          if (isCurrentTimeInWindow(targetDate, p.jamMulai, p.jamSelesai)) {
-            if (p.berlakuUntuk === "semua") {
-              selectedPromo = p;
-              break;
-            } else if (p.berlakuUntuk === "kategori" && p.kategoriId === kategoriId) {
-              selectedPromo = p;
-              break;
-            } else if (
-              p.berlakuUntuk === "menu_tertentu" &&
-              p.promoMenus.some((pm) => pm.menuId === menuId)
-            ) {
-              selectedPromo = p;
-              break;
-            }
-          }
-        }
-      }
-    }
-
-    if (!selectedPromo) return null;
-
-    let hargaFinal = hargaAsli;
-
-    if (selectedPromo.tipeDiskon === "harga_tetap") {
-      hargaFinal = Math.max(0, Math.round(selectedPromo.nilai));
-    } else if (selectedPromo.tipeDiskon === "persentase") {
-      const discountAmount = (hargaAsli * selectedPromo.nilai) / 100;
-      hargaFinal = Math.max(0, Math.round(hargaAsli - discountAmount));
-    } else if (selectedPromo.tipeDiskon === "nominal") {
-      hargaFinal = Math.max(0, Math.round(hargaAsli - selectedPromo.nilai));
-    }
-
-    const potongan = Math.max(0, hargaAsli - hargaFinal);
-
-    return {
-      promoId: selectedPromo.id,
-      namaPromo: selectedPromo.nama,
-      hargaAsli,
-      hargaPromo: hargaFinal,
-      potongan,
-    };
-  } catch (err) {
-    console.error("Error evaluating promo:", err);
-    return null;
   }
+
+  if (!selectedPromo) return null;
+
+  let hargaFinal = hargaAsli;
+
+  if (selectedPromo.tipeDiskon === "harga_tetap") {
+    hargaFinal = Math.max(0, Math.round(selectedPromo.nilai));
+  } else if (selectedPromo.tipeDiskon === "persentase") {
+    const discountAmount = (hargaAsli * selectedPromo.nilai) / 100;
+    hargaFinal = Math.max(0, Math.round(hargaAsli - discountAmount));
+  } else if (selectedPromo.tipeDiskon === "nominal") {
+    hargaFinal = Math.max(0, Math.round(hargaAsli - selectedPromo.nilai));
+  }
+
+  const potongan = Math.max(0, hargaAsli - hargaFinal);
+
+  return {
+    promoId: selectedPromo.id,
+    namaPromo: selectedPromo.nama,
+    hargaAsli,
+    hargaPromo: hargaFinal,
+    potongan,
+  };
+}
+
+/**
+ * Wrapper for single item evaluation
+ */
+export async function evaluateMenuPromo(
+  menuId: number,
+  hargaAsli: number,
+  kategoriId: number,
+  targetDate: Date = new Date()
+) {
+  const activePromos = await getActivePromosFromDb();
+  return evaluatePromoInMemory(menuId, hargaAsli, kategoriId, activePromos, targetDate);
 }

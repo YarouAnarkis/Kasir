@@ -41,12 +41,18 @@ export default function UserManagement({
   currentSessionRole,
   currentSessionId,
 }: UserManagementProps) {
-  const [users, setUsers] = useState<UserItem[]>(initialUsers);
+  // Point 7: Filter out Super Admin accounts if current user is a regular Admin
+  const filteredUsers = initialUsers.filter((u) =>
+    currentSessionRole === "admin" ? u.role !== "super_admin" : true
+  );
+
+  const [users, setUsers] = useState<UserItem[]>(filteredUsers);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [formNama, setFormNama] = useState("");
   const [formUsername, setFormUsername] = useState("");
   const [formPassword, setFormPassword] = useState("");
-  const [formRole, setFormRole] = useState<"karyawan" | "admin">("karyawan");
+  // Point 1: Admin can only create karyawan
+  const [formRole, setFormRole] = useState<"karyawan" | "admin" | "super_admin">("karyawan");
 
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
@@ -56,6 +62,8 @@ export default function UserManagement({
     e.preventDefault();
     setErrorMsg("");
     setSuccessMsg("");
+
+    const targetRole = currentSessionRole === "admin" ? "karyawan" : formRole;
 
     if (!formNama.trim() || !formUsername.trim() || !formPassword) {
       setErrorMsg("Semua bidang wajib diisi");
@@ -67,12 +75,12 @@ export default function UserManagement({
         nama: formNama,
         username: formUsername,
         password: formPassword,
-        role: formRole,
+        role: targetRole,
       });
 
       if (res.success && res.data) {
         setUsers((prev) => [res.data as UserItem, ...prev]);
-        setSuccessMsg(`Akun ${res.data.username} berhasil dibuat!`);
+        setSuccessMsg(`Akun ${res.data.username} (${res.data.role}) berhasil dibuat!`);
         setIsAddModalOpen(false);
         setFormNama("");
         setFormUsername("");
@@ -139,10 +147,12 @@ export default function UserManagement({
             <span>Manajemen Pengguna & Hak Akses (RBAC)</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-stone-100 tracking-tight">
-            Kelola Akun Karyawan & Admin
+            Kelola Akun Pengguna
           </h1>
           <p className="text-xs sm:text-sm text-stone-300 mt-1">
-            Tambah staf kasir baru, atur role hak akses, dan kelola akun pengguna aktif.
+            {currentSessionRole === "admin"
+              ? "Admin dapat membuat dan mengelola status akun staf Karyawan / Kasir."
+              : "Super Admin memiliki hak akses penuh kelola akun Admin & Karyawan."}
           </p>
         </div>
 
@@ -152,7 +162,7 @@ export default function UserManagement({
           className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-700 hover:from-amber-400 hover:to-amber-600 text-stone-950 font-extrabold text-xs sm:text-sm rounded-2xl shadow-lg transition-all duration-200 flex items-center gap-2 cursor-pointer shrink-0"
         >
           <UserPlus className="w-4 h-4" />
-          <span>Tambah Akun Baru</span>
+          <span>{currentSessionRole === "admin" ? "Tambah Karyawan Baru" : "Tambah User Baru"}</span>
         </button>
       </div>
 
@@ -285,8 +295,10 @@ export default function UserManagement({
                   <UserPlus className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-base text-stone-100">Buat Akun Pengguna Baru</h3>
-                  <p className="text-[11px] text-amber-200">Tambah akun karyawan / admin baru</p>
+                  <h3 className="font-extrabold text-base text-stone-100">
+                    {currentSessionRole === "admin" ? "Buat Akun Karyawan Baru" : "Buat Akun Pengguna Baru"}
+                  </h3>
+                  <p className="text-[11px] text-amber-200">Isi data akun staf / admin toko</p>
                 </div>
               </div>
               <button
@@ -335,16 +347,24 @@ export default function UserManagement({
                 />
               </div>
 
+              {/* Point 1: Admin can only create karyawan */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-stone-700">Role Hak Akses</label>
-                <select
-                  value={formRole}
-                  onChange={(e) => setFormRole(e.target.value as "karyawan" | "admin")}
-                  className="w-full px-3.5 py-2 bg-stone-50 border border-stone-300 rounded-xl text-stone-900 text-sm focus:outline-none focus:border-amber-600"
-                >
-                  <option value="karyawan">Kasir / Karyawan (Input transaksi)</option>
-                  <option value="admin">Admin Store (CRUD Menu, Laporan, Promo)</option>
-                </select>
+                {currentSessionRole === "admin" ? (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs font-bold text-amber-900">
+                    Kasir / Karyawan (Admin biasa hanya dapat menambahkan akun staf Karyawan)
+                  </div>
+                ) : (
+                  <select
+                    value={formRole}
+                    onChange={(e) => setFormRole(e.target.value as any)}
+                    className="w-full px-3.5 py-2 bg-stone-50 border border-stone-300 rounded-xl text-stone-900 text-sm focus:outline-none focus:border-amber-600"
+                  >
+                    <option value="karyawan">Kasir / Karyawan (Input transaksi)</option>
+                    <option value="admin">Admin Store (CRUD Menu, Laporan, Promo)</option>
+                    <option value="super_admin">Super Admin (Akses Penuh + Audit Log & Settings)</option>
+                  </select>
+                )}
               </div>
 
               <div className="pt-3 flex items-center justify-end gap-2">

@@ -61,6 +61,41 @@ export async function getCurrentUserAction() {
   return await getSession();
 }
 
+/**
+ * Verify admin password for sensitive operations (e.g., approving Employee Free Orders)
+ */
+export async function verifyAdminPasswordAction(passwordInput: string) {
+  try {
+    if (!passwordInput || !passwordInput.trim()) {
+      return { success: false, error: "Password otoritas admin wajib diisi" };
+    }
+
+    // Find all active admins and super admins
+    const admins = await prisma.user.findMany({
+      where: {
+        aktif: true,
+        role: { in: ["admin", "super_admin"] },
+      },
+    });
+
+    for (const admin of admins) {
+      const isMatch = await verifyPassword(passwordInput, admin.password);
+      if (isMatch) {
+        return {
+          success: true,
+          adminName: admin.nama,
+          adminRole: admin.role,
+        };
+      }
+    }
+
+    return { success: false, error: "Password otoritas admin salah atau tidak valid" };
+  } catch (error: any) {
+    console.error("Verify admin password error:", error);
+    return { success: false, error: "Gagal memverifikasi password admin" };
+  }
+}
+
 export async function getUsersAction() {
   try {
     const session = await getSession();
@@ -68,7 +103,15 @@ export async function getUsersAction() {
       return { success: false, error: "Akses tidak diizinkan" };
     }
 
+    const where: any = {};
+
+    // Point 7: Regular Admin CANNOT view Super Admin accounts
+    if (session.role === "admin") {
+      where.role = { not: "super_admin" };
+    }
+
     const users = await prisma.user.findMany({
+      where,
       select: {
         id: true,
         nama: true,
@@ -99,9 +142,9 @@ export async function createUserAction(data: {
       return { success: false, error: "Akses tidak diizinkan" };
     }
 
-    // Role restrictions
+    // Point 1: Admin can ONLY create karyawan accounts
     if (session.role === "admin" && data.role !== "karyawan") {
-      return { success: false, error: "Admin hanya bisa menambah akun karyawan" };
+      return { success: false, error: "Admin biasa hanya diperbolehkan membuat akun karyawan/kasir" };
     }
 
     if (!data.nama.trim() || !data.username.trim() || !data.password) {
