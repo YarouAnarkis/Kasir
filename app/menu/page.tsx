@@ -1,9 +1,16 @@
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import MenuManagement from "@/components/MenuManagement";
 
-export const revalidate = 10; // Incremental Static Revalidation with instant Server Action revalidatePath
+export const revalidate = 0;
 
 export default async function MenuPage() {
+  const session = await getSession();
+  if (!session || (session.role !== "admin" && session.role !== "super_admin")) {
+    redirect("/?unauthorized=true");
+  }
+
   let menus: any[] = [];
   let categories: any[] = [];
   let dbError = false;

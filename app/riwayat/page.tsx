@@ -1,14 +1,25 @@
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 import RiwayatTransaksi from "@/components/RiwayatTransaksi";
 
-export const revalidate = 10; // Incremental Static Revalidation with instant Server Action revalidatePath
+export const revalidate = 0;
 
 export default async function RiwayatPage() {
   let transactions: any[] = [];
   let dbError = false;
+  const session = await getSession();
 
   try {
+    const where: any = {};
+    if (session && session.role === "karyawan") {
+      where.OR = [
+        { kasirId: session.id },
+        { namaKasir: session.nama },
+      ];
+    }
+
     transactions = await prisma.transaksi.findMany({
+      where,
       include: {
         detailTransaksi: true,
       },
@@ -28,6 +39,7 @@ export default async function RiwayatPage() {
       )}
       <RiwayatTransaksi
         initialTransactions={JSON.parse(JSON.stringify(transactions))}
+        userRole={session?.role || "karyawan"}
       />
     </div>
   );

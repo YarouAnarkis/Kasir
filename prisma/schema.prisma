@@ -9,10 +9,45 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id                Int          @id @default(autoincrement())
+  nama              String
+  username          String       @unique
+  password          String       // Hash bcrypt
+  role              String       // "karyawan" | "admin" | "super_admin"
+  aktif             Boolean      @default(true)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  transaksiKasir    Transaksi[]  @relation("KasirUserRelation")
+  transaksiKaryawan Transaksi[]  @relation("KaryawanUserRelation")
+  promosCreated     Promo[]
+  auditLogs         AuditLog[]
+}
+
+model SystemSetting {
+  id          Int      @id @default(1)
+  namaToko    String   @default("Kasir Coffee Shop")
+  alamatToko  String   @default("Jl. Kopi No. 123, Jakarta")
+  teleponToko String   @default("0812-3456-7890")
+  persenPajak Int      @default(0)
+  updatedAt   DateTime @updatedAt
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String   // e.g. "VOID_TRANSACTION", "DELETE_MENU", "CREATE_PROMO"
+  details   String   @db.Text
+  createdAt DateTime @default(now())
+}
+
 model Kategori {
   id        Int      @id @default(autoincrement())
   nama      String   @unique
   menus     Menu[]
+  promos    Promo[]  @relation("KategoriPromoRelation")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -26,33 +61,79 @@ model Menu {
   gambar          String?           @db.Text
   tersedia        Boolean           @default(true)
   detailTransaksi DetailTransaksi[]
+  promoMenus      PromoMenu[]
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 }
 
 model Transaksi {
-  id              Int               @id @default(autoincrement())
-  nomorStruk      String            @unique @default(uuid())
-  tanggal         DateTime          @default(now())
-  namaKasir       String            @default("Kasir Cafe")
-  metodePembayaran String           @default("TUNAI")
-  subtotal        Int
-  pajak           Int               @default(0)
-  totalHarga      Int
-  dibayar         Int
-  kembalian       Int
+  id               Int               @id @default(autoincrement())
+  nomorStruk       String            @unique @default(uuid())
+  tanggal          DateTime          @default(now())
+  jenisTransaksi   String            @default("regular") // "regular" | "karyawan"
+  karyawanId       Int?
+  karyawan         User?             @relation("KaryawanUserRelation", fields: [karyawanId], references: [id], onDelete: SetNull)
+  namaKaryawan     String?
+  kasirId          Int?
+  kasir            User?             @relation("KasirUserRelation", fields: [kasirId], references: [id], onDelete: SetNull)
+  namaKasir        String            @default("Kasir Cafe")
+  metodePembayaran String            @default("TUNAI")
+  subtotal         Int
+  totalHargaAsli   Int               @default(0) // Total nilai asli sebelum diskon
+  totalDiskon      Int               @default(0) // Total hemat promo
+  pajak            Int               @default(0)
+  totalHarga       Int
+  dibayar          Int
+  kembalian        Int
+  isVoid           Boolean           @default(false)
+  voidReason       String?
+  voidBy           String?
+  detailTransaksi  DetailTransaksi[]
+  createdAt        DateTime          @default(now())
+}
+
+model Promo {
+  id             Int               @id @default(autoincrement())
+  nama           String
+  tipeDiskon     String            // "persentase" | "nominal" | "harga_tetap"
+  nilai          Float
+  tanggalMulai   DateTime?         // Untuk promo tanggal khusus
+  tanggalSelesai DateTime?
+  jamMulai       String?           // Format "HH:mm", untuk promo jam recurring (support overnight e.g. 21:00 -> 00:00)
+  jamSelesai     String?
+  berlakuUntuk   String            // "semua" | "kategori" | "menu_tertentu"
+  kategoriId     Int?
+  kategori       Kategori?         @relation("KategoriPromoRelation", fields: [kategoriId], references: [id], onDelete: SetNull)
+  aktif          Boolean           @default(true)
+  createdBy      Int
+  creator        User              @relation(fields: [createdBy], references: [id])
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  promoMenus     PromoMenu[]
   detailTransaksi DetailTransaksi[]
-  createdAt       DateTime          @default(now())
+}
+
+model PromoMenu {
+  id      Int   @id @default(autoincrement())
+  promoId Int
+  promo   Promo @relation(fields: [promoId], references: [id], onDelete: Cascade)
+  menuId  Int
+  menu    Menu  @relation(fields: [menuId], references: [id], onDelete: Cascade)
 }
 
 model DetailTransaksi {
-  id          Int       @id @default(autoincrement())
+  id          Int        @id @default(autoincrement())
   transaksiId Int
-  transaksi   Transaksi @relation(fields: [transaksiId], references: [id], onDelete: Cascade)
+  transaksi   Transaksi  @relation(fields: [transaksiId], references: [id], onDelete: Cascade)
   menuId      Int?
-  menu        Menu?     @relation(fields: [menuId], references: [id], onDelete: SetNull)
+  menu        Menu?      @relation(fields: [menuId], references: [id], onDelete: SetNull)
   namaMenu    String
-  hargaSatuan Int
+  hargaSatuan Int        // Harga final setelah promo
+  hargaAsli   Int        @default(0) // Harga normal menu
+  hargaPromo  Int?       // Harga promo per unit jika ada promo
+  promoId     Int?
+  promo       Promo?     @relation(fields: [promoId], references: [id], onDelete: SetNull)
+  namaPromo   String?
   jumlah      Int
   subtotal    Int
 }
