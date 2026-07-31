@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { getMenuList } from "@/app/actions/menuActions";
 import { createTransaksi, getKaryawanListAction } from "@/app/actions/transaksiActions";
 import { getCurrentUserAction, verifyAdminPasswordAction } from "@/app/actions/authActions";
+import { evaluatePromoInMemory } from "@/lib/promoEngine";
 import ReceiptModal, { ReceiptData } from "@/components/ReceiptModal";
 import {
   Search,
@@ -52,7 +53,7 @@ export interface CartItem {
   menuId: number;
   namaMenu: string;
   hargaSatuan: number;
-  hargaAsli?: number;
+  hargaAsli: number;
   namaPromo?: string | null;
   jumlah: number;
   subtotal: number;
@@ -69,11 +70,19 @@ interface KaryawanOption {
 interface KasirPOSProps {
   initialMenus: Menu[];
   initialCategories: Category[];
+  initialPromos?: any[];
+  systemPajakPercent?: number;
 }
 
-export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSProps) {
+export default function KasirPOS({
+  initialMenus,
+  initialCategories,
+  initialPromos = [],
+  systemPajakPercent = 10,
+}: KasirPOSProps) {
   const [menus, setMenus] = useState<Menu[]>(initialMenus);
   const [categories] = useState<Category[]>(initialCategories);
+  const [activePromos] = useState<any[]>(initialPromos);
   const [selectedCategory, setSelectedCategory] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [isSearching, setIsSearching] = useState<boolean>(false);
@@ -85,13 +94,13 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
   // Cashier Name & Shift State
   const [namaKasir, setNamaKasir] = useState<string>("Budi");
 
-  // Point 2 & 3: Employee Order & Admin Password Auth State
+  // Employee Order State
   const [isEmployeeOrder, setIsEmployeeOrder] = useState<boolean>(false);
   const [karyawanList, setKaryawanList] = useState<KaryawanOption[]>([]);
   const [selectedKaryawanId, setSelectedKaryawanId] = useState<number | null>(null);
   const [customKaryawanNama, setCustomKaryawanNama] = useState<string>("");
 
-  // Point 3: Admin Auth Modal State
+  // Admin Auth Modal State
   const [isAdminAuthModalOpen, setIsAdminAuthModalOpen] = useState<boolean>(false);
   const [adminPasswordInput, setAdminPasswordInput] = useState<string>("");
   const [adminAuthError, setAdminAuthError] = useState<string>("");
@@ -149,9 +158,15 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
     }
   };
 
-  // Cart helper functions
+  // Point 1: Add to cart evaluating in-memory promo pricing & strikethrough
   const addToCart = (menu: Menu) => {
     if (!menu.tersedia) return;
+
+    // Evaluate promo for this menu item
+    const promoResult = evaluatePromoInMemory(menu.id, menu.harga, menu.kategoriId, activePromos);
+
+    const finalPrice = promoResult ? promoResult.hargaPromo : menu.harga;
+    const promoName = promoResult ? promoResult.namaPromo : null;
 
     setCart((prev) => {
       const existing = prev.find((item) => item.menuId === menu.id);
@@ -171,10 +186,11 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
           {
             menuId: menu.id,
             namaMenu: menu.nama,
-            hargaSatuan: menu.harga,
+            hargaSatuan: finalPrice,
             hargaAsli: menu.harga,
+            namaPromo: promoName,
             jumlah: 1,
-            subtotal: menu.harga,
+            subtotal: finalPrice,
             gambar: menu.gambar,
             kategoriId: menu.kategoriId,
           },
@@ -212,10 +228,10 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
     setErrorMsg("");
   };
 
-  // Calculations
+  // Calculations & Point 2: Dynamic System Tax %
   const rawSubtotal = cart.reduce((acc, item) => acc + item.subtotal, 0);
   const subtotal = isEmployeeOrder ? 0 : rawSubtotal;
-  const pajak = !isEmployeeOrder && enableTax ? Math.round(subtotal * 0.1) : 0;
+  const pajak = !isEmployeeOrder && enableTax ? Math.round(subtotal * (systemPajakPercent / 100)) : 0;
   const totalHarga = isEmployeeOrder ? 0 : subtotal + pajak;
 
   const dibayarNum = isEmployeeOrder
@@ -243,7 +259,6 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
     }
   };
 
-  // Point 3: Trigger Admin Password Verification for Free Orders
   const initiatePay = () => {
     setErrorMsg("");
     if (cart.length === 0) {
@@ -252,7 +267,6 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
     }
 
     if (isEmployeeOrder) {
-      // Require Admin Authorization Password
       setAdminPasswordInput("");
       setAdminAuthError("");
       setIsAdminAuthModalOpen(true);
@@ -287,7 +301,6 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
     const method = overrideMethod || paymentMethod;
     setErrorMsg("");
 
-    // Point 2: Lock receiver to self if regular karyawan
     const isKaryawanRole = currentUser?.role === "karyawan";
     const selectedEmp = karyawanList.find((k) => k.id === selectedKaryawanId);
 
@@ -450,6 +463,10 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
                 const isOut = !menu.tersedia;
                 const hasImgError = imgErrors[menu.id];
 
+                // Point 1: Evaluate Promo for visual price strikethrough
+                const promoRes = evaluatePromoInMemory(menu.id, menu.harga, menu.kategoriId, activePromos);
+                const isDiscounted = promoRes !== null && promoRes.hargaPromo < menu.harga;
+
                 return (
                   <div
                     key={menu.id}
@@ -464,6 +481,14 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
                     {inCartItem && (
                       <div className="absolute top-2.5 right-2.5 z-10 bg-amber-600 text-white font-extrabold text-xs px-2.5 py-1 rounded-full shadow-lg border border-amber-400/40 animate-in zoom-in-75">
                         {inCartItem.jumlah}x di keranjang
+                      </div>
+                    )}
+
+                    {/* Point 1: Promo Badge Tag */}
+                    {isDiscounted && !isOut && (
+                      <div className="absolute top-2.5 left-2.5 z-10 bg-gradient-to-r from-red-600 to-amber-600 text-white font-extrabold text-[10px] px-2 py-0.5 rounded-full shadow-md border border-red-300 flex items-center gap-1">
+                        <Tag className="w-3 h-3" />
+                        <span>{promoRes.namaPromo}</span>
                       </div>
                     )}
 
@@ -493,7 +518,7 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
                       )}
                     </div>
 
-                    {/* Card Content */}
+                    {/* Card Content & Point 1 Price Strikethrough */}
                     <div className="p-3.5 sm:p-4 flex-1 flex flex-col justify-between space-y-2">
                       <div>
                         <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-full inline-block mb-1">
@@ -505,10 +530,22 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
                       </div>
 
                       <div className="flex items-center justify-between pt-1 border-t border-stone-100">
+                        {/* Point 1: Render Struck-Through Price + Discounted Price */}
                         <div>
-                          <span className="text-xs sm:text-sm font-black text-amber-950">
-                            Rp {menu.harga.toLocaleString("id-ID")}
-                          </span>
+                          {isDiscounted ? (
+                            <div className="flex flex-col">
+                              <span className="text-[11px] font-bold text-red-500 line-through">
+                                Rp {menu.harga.toLocaleString("id-ID")}
+                              </span>
+                              <span className="text-xs sm:text-sm font-black text-amber-950">
+                                Rp {promoRes.hargaPromo.toLocaleString("id-ID")}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-xs sm:text-sm font-black text-amber-950">
+                              Rp {menu.harga.toLocaleString("id-ID")}
+                            </span>
+                          )}
                         </div>
 
                         <button
@@ -563,7 +600,7 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
               )}
             </div>
 
-            {/* Feature #3: Employee Order Toggle & Point 2 Lock */}
+            {/* Employee Order Toggle */}
             <div className="p-3.5 bg-amber-50/70 border-b border-amber-200/80 space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-extrabold text-amber-950 flex items-center gap-1.5 cursor-pointer">
@@ -590,7 +627,6 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
                 <div className="pt-2 border-t border-amber-200/60 space-y-2 animate-in fade-in duration-200">
                   <p className="text-[11px] font-bold text-amber-900">Penerima Konsumsi Karyawan:</p>
 
-                  {/* Point 2: Lock receiver to logged-in user if role is regular karyawan */}
                   {currentUser?.role === "karyawan" ? (
                     <div className="p-2.5 bg-amber-100 border border-amber-300 rounded-xl text-xs font-extrabold text-amber-950 flex items-center justify-between">
                       <span>👤 {currentUser.nama} (Akun Anda)</span>
@@ -632,7 +668,7 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
               </div>
             )}
 
-            {/* Cart Item List */}
+            {/* Cart Item List with Point 1 Price Strikethrough */}
             <div className="p-4 overflow-y-auto space-y-3 flex-1 divide-y divide-stone-100">
               {cart.length === 0 ? (
                 <div className="py-10 text-center space-y-2 text-stone-400">
@@ -643,67 +679,83 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
                   </p>
                 </div>
               ) : (
-                cart.map((item) => (
-                  <div key={item.menuId} className="pt-2.5 first:pt-0 flex items-center justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-extrabold text-xs text-stone-900 truncate">
-                        {item.namaMenu}
-                      </h4>
-                      <div className="text-[11px] text-amber-950 font-bold">
-                        Rp {item.hargaSatuan.toLocaleString("id-ID")}{" "}
-                        <span className="text-stone-400 font-normal">/ unit</span>
+                cart.map((item) => {
+                  const hasDiscount = item.hargaAsli > item.hargaSatuan;
+                  return (
+                    <div key={item.menuId} className="pt-2.5 first:pt-0 flex items-center justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="font-extrabold text-xs text-stone-900 truncate">
+                            {item.namaMenu}
+                          </h4>
+                          {item.namaPromo && (
+                            <span className="text-[9px] bg-amber-100 text-amber-900 font-bold px-1.5 py-0.2 rounded border border-amber-200">
+                              {item.namaPromo}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Point 1: Cart Price Strikethrough */}
+                        <div className="text-[11px] text-amber-950 font-bold flex items-center gap-1.5 mt-0.5">
+                          {hasDiscount && (
+                            <span className="text-[10px] text-red-500 line-through font-normal">
+                              Rp {item.hargaAsli.toLocaleString("id-ID")}
+                            </span>
+                          )}
+                          <span>Rp {item.hargaSatuan.toLocaleString("id-ID")} / unit</span>
+                        </div>
+                      </div>
+
+                      {/* Quantity Controls */}
+                      <div className="flex items-center gap-1.5 bg-stone-100 p-1 rounded-2xl border border-stone-200 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => updateCartQuantity(item.menuId, -1)}
+                          className="w-6 h-6 rounded-xl bg-white text-stone-700 hover:bg-amber-100 hover:text-amber-900 flex items-center justify-center font-bold text-xs shadow-sm transition-colors cursor-pointer"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+
+                        <span className="w-6 text-center font-black text-xs text-stone-900">
+                          {item.jumlah}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => updateCartQuantity(item.menuId, 1)}
+                          className="w-6 h-6 rounded-xl bg-stone-900 text-amber-400 hover:bg-amber-700 hover:text-white flex items-center justify-center font-bold text-xs shadow-sm transition-colors cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      {/* Subtotal & Delete */}
+                      <div className="text-right shrink-0 min-w-[70px]">
+                        <div className="font-black text-xs text-amber-950">
+                          Rp {item.subtotal.toLocaleString("id-ID")}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeFromCart(item.menuId)}
+                          className="text-[10px] text-stone-400 hover:text-red-600 font-semibold cursor-pointer"
+                        >
+                          Hapus
+                        </button>
                       </div>
                     </div>
-
-                    {/* Quantity Controls */}
-                    <div className="flex items-center gap-1.5 bg-stone-100 p-1 rounded-2xl border border-stone-200 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => updateCartQuantity(item.menuId, -1)}
-                        className="w-6 h-6 rounded-xl bg-white text-stone-700 hover:bg-amber-100 hover:text-amber-900 flex items-center justify-center font-bold text-xs shadow-sm transition-colors cursor-pointer"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-
-                      <span className="w-6 text-center font-black text-xs text-stone-900">
-                        {item.jumlah}
-                      </span>
-
-                      <button
-                        type="button"
-                        onClick={() => updateCartQuantity(item.menuId, 1)}
-                        className="w-6 h-6 rounded-xl bg-stone-900 text-amber-400 hover:bg-amber-700 hover:text-white flex items-center justify-center font-bold text-xs shadow-sm transition-colors cursor-pointer"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    </div>
-
-                    {/* Subtotal & Delete */}
-                    <div className="text-right shrink-0 min-w-[70px]">
-                      <div className="font-black text-xs text-amber-950">
-                        Rp {item.subtotal.toLocaleString("id-ID")}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeFromCart(item.menuId)}
-                        className="text-[10px] text-stone-400 hover:text-red-600 font-semibold cursor-pointer"
-                      >
-                        Hapus
-                      </button>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
-            {/* Payment Summary Footer */}
+            {/* Payment Summary Footer & Point 2 Dynamic Tax %} */}
             {cart.length > 0 && (
               <div className="p-4 bg-stone-50/90 border-t border-stone-200 space-y-3">
                 {!isEmployeeOrder && (
                   <div className="flex items-center justify-between text-xs font-semibold text-stone-700">
                     <label htmlFor="tax-toggle" className="flex items-center gap-1.5 cursor-pointer">
                       <Percent className="w-3.5 h-3.5 text-amber-700" />
-                      <span>Tambah Pajak Resto (10%)</span>
+                      <span>Tambah Pajak Resto ({systemPajakPercent}%)</span>
                     </label>
                     <input
                       id="tax-toggle"
@@ -724,7 +776,7 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
                   </div>
                   {!isEmployeeOrder && enableTax && (
                     <div className="flex justify-between text-amber-900 font-medium">
-                      <span>Pajak Resto (10%)</span>
+                      <span>Pajak Resto ({systemPajakPercent}%)</span>
                       <span>Rp {pajak.toLocaleString("id-ID")}</span>
                     </div>
                   )}
@@ -870,7 +922,7 @@ export default function KasirPOS({ initialMenus, initialCategories }: KasirPOSPr
         </div>
       </div>
 
-      {/* Point 3: Admin Authorization Password Modal for Free Orders */}
+      {/* Admin Authorization Password Modal */}
       {isAdminAuthModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-md animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-2xl border border-stone-200 w-full max-w-md overflow-hidden flex flex-col">

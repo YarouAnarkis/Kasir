@@ -1,15 +1,19 @@
 import { prisma } from "@/lib/prisma";
 import KasirPOS from "@/components/KasirPOS";
+import { getActivePromosFromDb } from "@/lib/promoEngine";
+import { getSystemSettingsAction } from "@/app/actions/systemActions";
 
-export const revalidate = 10; // Incremental Static Revalidation with instant Server Action revalidatePath
+export const revalidate = 0;
 
 export default async function TransaksiPage() {
   let menus: any[] = [];
   let categories: any[] = [];
+  let activePromos: any[] = [];
+  let persenPajak = 10;
   let dbError = false;
 
   try {
-    const [fetchedMenus, fetchedCategories] = await Promise.all([
+    const [fetchedMenus, fetchedCategories, fetchedPromos, settingsRes] = await Promise.all([
       prisma.menu.findMany({
         include: {
           kategori: true,
@@ -19,9 +23,16 @@ export default async function TransaksiPage() {
       prisma.kategori.findMany({
         orderBy: { nama: "asc" },
       }),
+      getActivePromosFromDb(),
+      getSystemSettingsAction(),
     ]);
+
     menus = fetchedMenus;
     categories = fetchedCategories;
+    activePromos = fetchedPromos;
+    if (settingsRes.success && settingsRes.data) {
+      persenPajak = settingsRes.data.persenPajak;
+    }
   } catch (error) {
     console.error("Database connection error on Vercel:", error);
     dbError = true;
@@ -43,6 +54,8 @@ export default async function TransaksiPage() {
       <KasirPOS
         initialMenus={JSON.parse(JSON.stringify(menus))}
         initialCategories={JSON.parse(JSON.stringify(categories))}
+        initialPromos={JSON.parse(JSON.stringify(activePromos))}
+        systemPajakPercent={persenPajak}
       />
     </div>
   );

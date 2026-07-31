@@ -14,7 +14,8 @@ import {
   User as UserIcon,
   ShieldCheck,
   Tag,
-  Users
+  Users,
+  Settings
 } from "lucide-react";
 import { getCurrentUserAction, logoutAction } from "@/app/actions/authActions";
 
@@ -101,6 +102,12 @@ export default function Navbar() {
       href: "/users",
       icon: Users,
       roles: ["admin", "super_admin"],
+    },
+    {
+      name: "Pengaturan & Audit",
+      href: "/pengaturan",
+      icon: Settings,
+      roles: ["super_admin"],
     },
     {
       name: "Dashboard",

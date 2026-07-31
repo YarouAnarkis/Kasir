@@ -45,10 +45,10 @@ export async function GET(request: NextRequest) {
           },
         },
         kasir: {
-          select: { nama: true, username: true },
+          select: { nama: true, username: true, role: true },
         },
         karyawan: {
-          select: { nama: true },
+          select: { nama: true, username: true },
         },
       },
       orderBy: { tanggal: "desc" },
@@ -59,16 +59,16 @@ export async function GET(request: NextRequest) {
     workbook.created = new Date();
 
     // ----------------------------------------------------
-    // SHEET 1: RINGKASAN PENJUALAN & COMPARISON
+    // SHEET 1: RINGKASAN TOTAL & PERKINERJAAN KASIR
     // ----------------------------------------------------
-    const summarySheet = workbook.addWorksheet("Ringkasan Total", {
+    const summarySheet = workbook.addWorksheet("Ringkasan & Kinerja Kasir", {
       views: [{ showGridLines: true }],
     });
 
-    // Title Header
+    // Title Header Banner
     summarySheet.mergeCells("A1:F1");
     const titleCell = summarySheet.getCell("A1");
-    titleCell.value = "LAPORAN RINGKASAN PENJUALAN & KONSUMSI KARYAWAN";
+    titleCell.value = "LAPORAN RINGKASAN PENJUALAN & RIWAYAT PENANGGUNG JAWAB KASIR";
     titleCell.font = { name: "Arial", size: 14, bold: true, color: { argb: "FFFFFFFF" } };
     titleCell.fill = {
       type: "pattern",
@@ -89,6 +89,7 @@ export async function GET(request: NextRequest) {
     summarySheet.getCell("A4").font = { bold: true };
     summarySheet.getCell("B4").value = new Date().toLocaleString("id-ID");
 
+    // Table 1: Daily Summary
     const summaryHeaderRow = summarySheet.getRow(6);
     summaryHeaderRow.values = [
       "Tanggal",
@@ -110,7 +111,7 @@ export async function GET(request: NextRequest) {
       cell.alignment = { horizontal: "center", vertical: "middle" };
     });
 
-    // Grouping by date
+    // Aggregations
     const dailyMap: Record<
       string,
       {
@@ -120,6 +121,11 @@ export async function GET(request: NextRequest) {
         nilaiKaryawan: number;
         totalPromo: number;
       }
+    > = {};
+
+    const cashierMap: Record<
+      string,
+      { nama: string; count: number; totalOmset: number }
     > = {};
 
     transactions.forEach((t) => {
@@ -134,6 +140,11 @@ export async function GET(request: NextRequest) {
         };
       }
 
+      const kasirNama = t.namaKasir || t.kasir?.nama || "Kasir Cafe";
+      if (!cashierMap[kasirNama]) {
+        cashierMap[kasirNama] = { nama: kasirNama, count: 0, totalOmset: 0 };
+      }
+
       if (t.jenisTransaksi === "karyawan") {
         dailyMap[dateKey].countKaryawan += 1;
         dailyMap[dateKey].nilaiKaryawan += t.totalHargaAsli || t.subtotal;
@@ -141,6 +152,9 @@ export async function GET(request: NextRequest) {
         dailyMap[dateKey].countCustomer += 1;
         dailyMap[dateKey].omsetCustomer += t.totalHarga;
         dailyMap[dateKey].totalPromo += t.totalDiskon;
+
+        cashierMap[kasirNama].count += 1;
+        cashierMap[kasirNama].totalOmset += t.totalHarga;
       }
     });
 
@@ -177,7 +191,7 @@ export async function GET(request: NextRequest) {
       rowIndex++;
     });
 
-    // Grand Total
+    // Grand Total Row
     const grandRow = summarySheet.getRow(rowIndex);
     grandRow.values = [
       "TOTAL KESELURUHAN",
@@ -202,6 +216,32 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    // Table 2: Cashier Performance Breakdown
+    rowIndex += 3;
+    summarySheet.getCell(`A${rowIndex}`).value = "RINGKASAN PENANGGUNG JAWAB / KASIR";
+    summarySheet.getCell(`A${rowIndex}`).font = { bold: true, size: 12 };
+
+    rowIndex++;
+    const cashierHeaderRow = summarySheet.getRow(rowIndex);
+    cashierHeaderRow.values = ["Nama Kasir", "Jumlah Transaksi Ditangani", "Total Omset Dihasilkan (Rp)"];
+    cashierHeaderRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    cashierHeaderRow.eachCell((cell) => {
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF2D1B10" },
+      };
+    });
+
+    rowIndex++;
+    Object.values(cashierMap).forEach((c) => {
+      const cRow = summarySheet.getRow(rowIndex);
+      cRow.values = [c.nama, c.count, c.totalOmset];
+      cRow.getCell(2).numFmt = "#,##0";
+      cRow.getCell(3).numFmt = "Rp #,##0";
+      rowIndex++;
+    });
+
     summarySheet.columns.forEach((col) => {
       col.width = 26;
     });
@@ -216,7 +256,7 @@ export async function GET(request: NextRequest) {
     const custHeaderRow = custSheet.getRow(1);
     custHeaderRow.values = [
       "Tanggal",
-      "Jam Pembelian",
+      "Jam Pembelian (HH:mm:ss)",
       "No. Struk",
       "Kasir Penanggung Jawab",
       "Nama Menu Item",
@@ -283,9 +323,9 @@ export async function GET(request: NextRequest) {
       });
 
     custSheet.columns.forEach((col, idx) => {
-      if (idx === 0 || idx === 1) col.width = 16;
+      if (idx === 0 || idx === 1) col.width = 18;
       else if (idx === 2) col.width = 24;
-      else if (idx === 4) col.width = 28;
+      else if (idx === 3 || idx === 4) col.width = 28;
       else col.width = 18;
     });
 
@@ -299,7 +339,7 @@ export async function GET(request: NextRequest) {
     const empHeaderRow = empSheet.getRow(1);
     empHeaderRow.values = [
       "Tanggal",
-      "Jam Pembelian",
+      "Jam Pembelian (HH:mm:ss)",
       "No. Struk",
       "Kasir Input",
       "Karyawan Penerima",
@@ -307,7 +347,7 @@ export async function GET(request: NextRequest) {
       "Jumlah Qty",
       "Harga Asli Item (Rp)",
       "Nilai Beban Konsumsi (Rp)",
-      "Status",
+      "Status Payment",
     ];
 
     empHeaderRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
@@ -363,9 +403,9 @@ export async function GET(request: NextRequest) {
       });
 
     empSheet.columns.forEach((col, idx) => {
-      if (idx === 0 || idx === 1) col.width = 16;
+      if (idx === 0 || idx === 1) col.width = 18;
       else if (idx === 2) col.width = 24;
-      else if (idx === 4 || idx === 5) col.width = 26;
+      else if (idx === 3 || idx === 4 || idx === 5) col.width = 26;
       else col.width = 18;
     });
 
