@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { loginAction } from "@/app/actions/authActions";
-import { Coffee, Lock, User as UserIcon, LogIn, Sparkles, ShieldCheck, UserCheck } from "lucide-react";
+import { Coffee, Lock, User as UserIcon, LogIn } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -30,12 +30,6 @@ export default function LoginPage() {
         setErrorMsg(res.error || "Gagal melakukan login");
       }
     });
-  };
-
-  const fillDemoAccount = (demoUser: string, demoPass: string) => {
-    setUsername(demoUser);
-    setPassword(demoPass);
-    setErrorMsg("");
   };
 
   return (
@@ -148,48 +142,6 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-
-          {/* Quick Demo Login Badges */}
-          <div className="pt-3 border-t border-stone-800/80 space-y-2">
-            <p className="text-[11px] font-bold text-stone-400 flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              Demo Quick Login (Klik untuk mengisi):
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => fillDemoAccount("budi", "kasir123")}
-                className="px-2.5 py-2 bg-stone-950/80 hover:bg-amber-900/40 border border-stone-800 rounded-xl text-[11px] font-bold text-amber-200 text-left transition-all flex flex-col cursor-pointer"
-              >
-                <span className="flex items-center gap-1 text-amber-400">
-                  <UserCheck className="w-3 h-3" /> Kasir
-                </span>
-                <span className="text-stone-400 font-mono text-[10px]">budi</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => fillDemoAccount("admin", "admin123")}
-                className="px-2.5 py-2 bg-stone-950/80 hover:bg-amber-900/40 border border-stone-800 rounded-xl text-[11px] font-bold text-emerald-200 text-left transition-all flex flex-col cursor-pointer"
-              >
-                <span className="flex items-center gap-1 text-emerald-400">
-                  <ShieldCheck className="w-3 h-3" /> Admin
-                </span>
-                <span className="text-stone-400 font-mono text-[10px]">admin</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => fillDemoAccount("superadmin", "admin123")}
-                className="px-2.5 py-2 bg-stone-950/80 hover:bg-amber-900/40 border border-stone-800 rounded-xl text-[11px] font-bold text-purple-200 text-left transition-all flex flex-col cursor-pointer"
-              >
-                <span className="flex items-center gap-1 text-purple-400">
-                  <Sparkles className="w-3 h-3" /> Super Admin
-                </span>
-                <span className="text-stone-400 font-mono text-[10px]">superadmin</span>
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
