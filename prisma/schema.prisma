@@ -23,6 +23,7 @@ model User {
   transaksiKaryawan Transaksi[]  @relation("KaryawanUserRelation")
   promosCreated     Promo[]
   auditLogs         AuditLog[]
+  shifts            ShiftKasir[]
 }
 
 model SystemSetting {
@@ -62,8 +63,53 @@ model Menu {
   tersedia        Boolean           @default(true)
   detailTransaksi DetailTransaksi[]
   promoMenus      PromoMenu[]
+  resepMenus      ResepMenu[]
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
+}
+
+model ShiftKasir {
+  id                  Int       @id @default(autoincrement())
+  kasirId             Int
+  kasir               User      @relation(fields: [kasirId], references: [id], onDelete: Cascade)
+  namaKasir           String
+  waktuBuka           DateTime  @default(now())
+  waktuTutup          DateTime?
+  modalAwal           Int       @default(0) // Cash drawer float
+  totalTunaiSistem    Int       @default(0)
+  totalQrisSistem     Int       @default(0)
+  totalFreeOrderSistem Int      @default(0)
+  hitungFisikTunai    Int?
+  selisihKas          Int?
+  catatan             String?   @db.Text
+  status              String    @default("OPEN") // "OPEN" | "CLOSED"
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+model BahanBaku {
+  id          Int         @id @default(autoincrement())
+  nama        String
+  satuan      String      // "gram", "ml", "pcs", "pack"
+  stok        Float       @default(0)
+  stokMinim   Float       @default(10)
+  hargaSatuan Int         @default(0)
+  resepMenus  ResepMenu[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model ResepMenu {
+  id          Int       @id @default(autoincrement())
+  menuId      Int
+  menu        Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  bahanBakuId Int
+  bahanBaku   BahanBaku @relation(fields: [bahanBakuId], references: [id], onDelete: Cascade)
+  jumlahPakai Float     // e.g. 18 (gram), 150 (ml)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([menuId, bahanBakuId])
 }
 
 model Transaksi {
@@ -93,23 +139,23 @@ model Transaksi {
 }
 
 model Promo {
-  id             Int               @id @default(autoincrement())
-  nama           String
-  tipeDiskon     String            // "persentase" | "nominal" | "harga_tetap"
-  nilai          Float
-  tanggalMulai   DateTime?         // Untuk promo tanggal khusus
-  tanggalSelesai DateTime?
-  jamMulai       String?           // Format "HH:mm", untuk promo jam recurring (support overnight e.g. 21:00 -> 00:00)
-  jamSelesai     String?
-  berlakuUntuk   String            // "semua" | "kategori" | "menu_tertentu"
-  kategoriId     Int?
-  kategori       Kategori?         @relation("KategoriPromoRelation", fields: [kategoriId], references: [id], onDelete: SetNull)
-  aktif          Boolean           @default(true)
-  createdBy      Int
-  creator        User              @relation(fields: [createdBy], references: [id])
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  promoMenus     PromoMenu[]
+  id              Int               @id @default(autoincrement())
+  nama            String
+  tipeDiskon      String            // "persentase" | "nominal" | "harga_tetap"
+  nilai           Float
+  tanggalMulai    DateTime?         // Untuk promo tanggal khusus
+  tanggalSelesai  DateTime?
+  jamMulai        String?           // Format "HH:mm", untuk promo jam recurring
+  jamSelesai      String?
+  berlakuUntuk    String            // "semua" | "kategori" | "menu_tertentu"
+  kategoriId      Int?
+  kategori        Kategori?         @relation("KategoriPromoRelation", fields: [kategoriId], references: [id], onDelete: SetNull)
+  aktif           Boolean           @default(true)
+  createdBy       Int
+  creator         User              @relation(fields: [createdBy], references: [id])
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  promoMenus      PromoMenu[]
   detailTransaksi DetailTransaksi[]
 }
 

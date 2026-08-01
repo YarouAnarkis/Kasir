@@ -48,11 +48,14 @@ export async function createTransaksi(payload: CreateTransaksiPayload) {
     // Point 4: Eliminate N+1 DB queries by batching menu & promo lookups in parallel
     const menuIds = Array.from(new Set(items.map((i) => i.menuId)));
 
-    const [dbMenus, activePromos] = await Promise.all([
+    const [dbMenus, activePromos, recipes] = await Promise.all([
       prisma.menu.findMany({
         where: { id: { in: menuIds } },
       }),
       isKaryawanOrder ? Promise.resolve([]) : getActivePromosFromDb(),
+      prisma.resepMenu.findMany({
+        where: { menuId: { in: menuIds } },
+      }),
     ]);
 
     const dbMenuMap = new Map(dbMenus.map((m) => [m.id, m]));
@@ -120,24 +123,46 @@ export async function createTransaksi(payload: CreateTransaksiPayload) {
       };
     }
 
-    const kembalian = isKaryawanOrder ? 0 : effectiveDibayar - calculatedTotalHarga;
+    const calculatedKembalian = isKaryawanOrder ? 0 : Math.max(0, effectiveDibayar - calculatedTotalHarga);
 
-    // Save transaction
-    const transaksi = await prisma.transaksi.create({
+    const activeKasirId = session ? session.id : undefined;
+    const finalNamaKasir = namaKasir || (session ? session.nama : "Kasir Cafe");
+
+    // Deduct raw material inventory based on menu recipes
+    if (recipes.length > 0) {
+      for (const item of items) {
+        const itemRecipes = recipes.filter((r) => r.menuId === item.menuId);
+        for (const r of itemRecipes) {
+          const deductQty = r.jumlahPakai * item.jumlah;
+          try {
+            await prisma.bahanBaku.update({
+              where: { id: r.bahanBakuId },
+              data: {
+                stok: { decrement: deductQty },
+              },
+            });
+          } catch (e) {
+            console.error("Deduct stock error:", e);
+          }
+        }
+      }
+    }
+
+    const newTransaksi = await prisma.transaksi.create({
       data: {
         jenisTransaksi,
-        karyawanId: isKaryawanOrder && karyawanId ? Number(karyawanId) : null,
-        namaKaryawan: isKaryawanOrder ? namaKaryawan : null,
-        kasirId: session ? session.id : null,
-        namaKasir: session ? session.nama : (namaKasir && namaKasir.trim() !== "" ? namaKasir.trim() : "Kasir Cafe"),
-        metodePembayaran: isKaryawanOrder ? "FREE ORDER" : (metodePembayaran || "TUNAI"),
+        karyawanId: isKaryawanOrder ? karyawanId : undefined,
+        namaKaryawan: isKaryawanOrder ? namaKaryawan : undefined,
+        kasirId: activeKasirId,
+        namaKasir: finalNamaKasir,
+        metodePembayaran: isKaryawanOrder ? "FREE ORDER" : metodePembayaran || "TUNAI",
         subtotal: calculatedSubtotal,
         totalHargaAsli: totalHargaAsliSum,
         totalDiskon: totalDiskonSum,
         pajak: calculatedPajak,
         totalHarga: calculatedTotalHarga,
         dibayar: effectiveDibayar,
-        kembalian: Math.max(0, Math.round(kembalian)),
+        kembalian: calculatedKembalian,
         detailTransaksi: {
           create: processedDetailItems,
         },
@@ -147,96 +172,140 @@ export async function createTransaksi(payload: CreateTransaksiPayload) {
       },
     });
 
-    revalidatePath("/");
     revalidatePath("/riwayat");
     revalidatePath("/dashboard");
+    revalidatePath("/stok");
+    revalidatePath("/");
 
-    return { success: true, data: transaksi };
+    return {
+      success: true,
+      data: newTransaksi,
+    };
   } catch (error: any) {
-    console.error("Error creating transaction:", error);
-    return { success: false, error: "Gagal menyimpan transaksi" };
+    console.error("Error creating transaksi:", error);
+    return {
+      success: false,
+      error: "Gagal menyimpan transaksi ke database: " + error.message,
+    };
   }
 }
 
 export async function getTransaksiHistory(
-  startDate?: string,
-  endDate?: string,
-  jenisTransaksiFilter?: string,
-  kasirIdFilter?: string
+  filterDate?: string,
+  kasirId?: number,
+  jenisTransaksi?: string
 ) {
   try {
-    const session = await getSession();
     const where: any = {};
 
-    // Karyawan role can only see their own transactions
-    if (session && session.role === "karyawan") {
-      where.OR = [
-        { kasirId: session.id },
-        { namaKasir: session.nama },
-      ];
-    }
-
-    if (startDate) {
-      const start = new Date(startDate);
+    if (filterDate) {
+      const start = new Date(filterDate);
       start.setHours(0, 0, 0, 0);
 
-      const end = endDate ? new Date(endDate) : new Date(startDate);
+      const end = new Date(filterDate);
       end.setHours(23, 59, 59, 999);
 
-      where.tanggal = { gte: start, lte: end };
+      where.tanggal = {
+        gte: start,
+        lte: end,
+      };
     }
 
-    if (jenisTransaksiFilter && jenisTransaksiFilter !== "all") {
-      where.jenisTransaksi = jenisTransaksiFilter;
+    if (kasirId) {
+      where.kasirId = kasirId;
     }
 
-    if (kasirIdFilter && kasirIdFilter !== "all") {
-      where.kasirId = Number(kasirIdFilter);
+    if (jenisTransaksi && jenisTransaksi !== "all") {
+      where.jenisTransaksi = jenisTransaksi;
     }
 
-    const transactions = await prisma.transaksi.findMany({
+    const history = await prisma.transaksi.findMany({
       where,
       include: {
         detailTransaksi: true,
-        karyawan: {
-          select: { nama: true },
-        },
       },
-      orderBy: { tanggal: "desc" },
+      orderBy: {
+        tanggal: "desc",
+      },
     });
 
-    return { success: true, data: transactions };
+    return { success: true, data: history };
   } catch (error: any) {
-    console.error("Error fetching transactions:", error);
+    console.error("Error fetching transaksi history:", error);
     return { success: false, error: "Gagal mengambil riwayat transaksi" };
   }
 }
 
-// Point 6: Mandatory void reason requirement
-export async function voidTransaksiAction(id: number, reason: string) {
+export async function getKaryawanListAction() {
+  try {
+    const list = await prisma.user.findMany({
+      where: { aktif: true },
+      select: { id: true, nama: true, username: true, role: true },
+      orderBy: { nama: "asc" },
+    });
+    return { success: true, data: list };
+  } catch (error: any) {
+    console.error("Get karyawan list error:", error);
+    return { success: false, error: "Gagal mengambil daftar karyawan" };
+  }
+}
+
+export async function voidTransaksiAction(transaksiId: number, reason: string) {
   try {
     const session = await getSession();
     if (!session || (session.role !== "admin" && session.role !== "super_admin")) {
-      return { success: false, error: "Hanya Admin / Super Admin yang bisa melakukan Void transaksi" };
+      return { success: false, error: "Hanya Admin / Super Admin yang bisa membatalkan (Void) transaksi" };
     }
 
     if (!reason || !reason.trim()) {
-      return { success: false, error: "Alasan pembatalan (Void) wajib diisi!" };
+      return { success: false, error: "Alasan pembatalan transaksi wajib diisi" };
     }
 
-    const transaction = await prisma.transaksi.findUnique({ where: { id } });
-    if (!transaction) return { success: false, error: "Transaksi tidak ditemukan" };
+    const tx = await prisma.transaksi.findUnique({
+      where: { id: transaksiId },
+      include: { detailTransaksi: true },
+    });
 
-    if (transaction.isVoid) {
+    if (!tx) {
+      return { success: false, error: "Transaksi tidak ditemukan" };
+    }
+
+    if (tx.isVoid) {
       return { success: false, error: "Transaksi ini sudah dibatalkan sebelumnya" };
     }
 
-    const updated = await prisma.transaksi.update({
-      where: { id },
+    // Revert raw material inventory
+    const menuIds = Array.from(new Set(tx.detailTransaksi.map((d) => d.menuId).filter(Boolean))) as number[];
+    if (menuIds.length > 0) {
+      const recipes = await prisma.resepMenu.findMany({
+        where: { menuId: { in: menuIds } },
+      });
+
+      for (const detail of tx.detailTransaksi) {
+        if (!detail.menuId) continue;
+        const itemRecipes = recipes.filter((r) => r.menuId === detail.menuId);
+        for (const r of itemRecipes) {
+          const revertQty = r.jumlahPakai * detail.jumlah;
+          try {
+            await prisma.bahanBaku.update({
+              where: { id: r.bahanBakuId },
+              data: {
+                stok: { increment: revertQty },
+              },
+            });
+          } catch (e) {
+            console.error("Revert stock error:", e);
+          }
+        }
+      }
+    }
+
+    const voided = await prisma.transaksi.update({
+      where: { id: transaksiId },
       data: {
         isVoid: true,
         voidReason: reason.trim(),
-        voidBy: session.nama,
+        voidBy: `${session.nama} (${session.role})`,
       },
     });
 
@@ -244,15 +313,18 @@ export async function voidTransaksiAction(id: number, reason: string) {
       data: {
         userId: session.id,
         action: "VOID_TRANSACTION",
-        details: `Membatalkan (Void) transaksi #${transaction.nomorStruk}. Alasan: ${reason.trim()}`,
+        details: `Membatalkan Transaksi #${tx.nomorStruk.slice(-8)}. Alasan: ${reason.trim()}`,
       },
     });
 
     revalidatePath("/riwayat");
     revalidatePath("/dashboard");
-    return { success: true, data: updated };
+    revalidatePath("/stok");
+    revalidatePath("/");
+
+    return { success: true, data: voided };
   } catch (error: any) {
-    console.error("Void transaction error:", error);
+    console.error("Void transaksi error:", error);
     return { success: false, error: "Gagal membatalkan transaksi" };
   }
 }
@@ -269,110 +341,107 @@ export async function getDashboardStats() {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
     sevenDaysAgo.setHours(0, 0, 0, 0);
 
-    const [todayTransactions, topItemsRaw, recentTransactions, totalSemuaTransaksi] =
-      await Promise.all([
-        prisma.transaksi.findMany({
-          where: {
-            isVoid: false,
-            tanggal: {
-              gte: todayStart,
-              lte: todayEnd,
-            },
-          },
-          select: {
-            totalHarga: true,
-          },
-        }),
-        prisma.detailTransaksi.groupBy({
-          where: {
-            transaksi: { isVoid: false },
-          },
-          by: ["namaMenu"],
-          _sum: {
-            jumlah: true,
-            subtotal: true,
-          },
-          orderBy: {
-            _sum: {
-              jumlah: "desc",
-            },
-          },
-          take: 5,
-        }),
-        prisma.transaksi.findMany({
-          where: {
-            isVoid: false,
-            tanggal: {
-              gte: sevenDaysAgo,
-            },
-          },
-          select: {
-            tanggal: true,
-            totalHarga: true,
-          },
-        }),
-        prisma.transaksi.count({ where: { isVoid: false } }),
-      ]);
+    const recentTransactions = await prisma.transaksi.findMany({
+      where: {
+        isVoid: false,
+        tanggal: { gte: sevenDaysAgo },
+      },
+      include: {
+        detailTransaksi: true,
+      },
+      orderBy: { tanggal: "asc" },
+    });
 
-    const totalHariIni = todayTransactions.reduce((acc, t) => acc + t.totalHarga, 0);
-    const jumlahTransaksiHariIni = todayTransactions.length;
+    // Total Hari Ini
+    const todayTx = recentTransactions.filter((t) => new Date(t.tanggal) >= todayStart);
+    const totalHariIni = todayTx.reduce((acc, t) => acc + (t.jenisTransaksi === "karyawan" ? 0 : t.totalHarga), 0);
+    const jumlahTransaksiHariIni = todayTx.length;
 
-    const topItems = topItemsRaw.map((item) => ({
-      nama: item.namaMenu,
-      terjual: item._sum.jumlah || 0,
-      totalPendapatan: item._sum.subtotal || 0,
-    }));
-
-    const dailyMap: Record<string, number> = {};
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(sevenDaysAgo);
-      d.setDate(d.getDate() + i);
-      const dateStr = d.toISOString().split("T")[0];
-      dailyMap[dateStr] = 0;
+    // Hourly Peak Hours Chart (07:00 - 23:00)
+    const hourlyMap: Record<string, { hour: string; count: number; omset: number }> = {};
+    for (let h = 7; h <= 23; h++) {
+      const label = `${String(h).padStart(2, "0")}:00`;
+      hourlyMap[label] = { hour: label, count: 0, omset: 0 };
     }
 
     recentTransactions.forEach((t) => {
-      const dateStr = t.tanggal.toISOString().split("T")[0];
-      if (dailyMap[dateStr] !== undefined) {
-        dailyMap[dateStr] += t.totalHarga;
+      const d = new Date(t.tanggal);
+      const hStr = `${String(d.getHours()).padStart(2, "0")}:00`;
+      if (hourlyMap[hStr]) {
+        hourlyMap[hStr].count += 1;
+        if (t.jenisTransaksi !== "karyawan") {
+          hourlyMap[hStr].omset += t.totalHarga;
+        }
+      }
+    });
+    const hourlyPeak = Object.values(hourlyMap);
+
+    // Weekly Revenue Trend (Last 7 Days)
+    const weeklyMap: Record<string, { date: string; dateLabel: string; omset: number; count: number }> = {};
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateKey = d.toISOString().split("T")[0];
+      const dateLabel = d.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+      weeklyMap[dateKey] = { date: dateKey, dateLabel, omset: 0, count: 0 };
+    }
+
+    recentTransactions.forEach((t) => {
+      const dateKey = new Date(t.tanggal).toISOString().split("T")[0];
+      if (weeklyMap[dateKey]) {
+        weeklyMap[dateKey].count += 1;
+        if (t.jenisTransaksi !== "karyawan") {
+          weeklyMap[dateKey].omset += t.totalHarga;
+        }
+      }
+    });
+    const weeklyTrend = Object.values(weeklyMap);
+
+    // Payment Method Breakdown
+    let totalTunai = 0;
+    let totalQris = 0;
+    let totalFree = 0;
+
+    recentTransactions.forEach((t) => {
+      if (t.jenisTransaksi === "karyawan") {
+        totalFree += t.subtotal;
+      } else if (t.metodePembayaran === "QRIS") {
+        totalQris += t.totalHarga;
+      } else {
+        totalTunai += t.totalHarga;
       }
     });
 
-    const salesChart = Object.entries(dailyMap).map(([date, total]) => ({
-      date,
-      displayDate: new Date(date).toLocaleDateString("id-ID", {
-        weekday: "short",
-        day: "numeric",
-        month: "short",
-      }),
-      total,
-    }));
+    // Top 5 Best Sellers
+    const itemMap: Record<string, { nama: string; totalQty: number; totalOmset: number }> = {};
+    recentTransactions.forEach((t) => {
+      t.detailTransaksi.forEach((d) => {
+        if (!itemMap[d.namaMenu]) {
+          itemMap[d.namaMenu] = { nama: d.namaMenu, totalQty: 0, totalOmset: 0 };
+        }
+        itemMap[d.namaMenu].totalQty += d.jumlah;
+        itemMap[d.namaMenu].totalOmset += d.subtotal;
+      });
+    });
+
+    const topItems = Object.values(itemMap)
+      .sort((a, b) => b.totalQty - a.totalQty)
+      .slice(0, 5);
 
     return {
       success: true,
       data: {
         totalHariIni,
         jumlahTransaksiHariIni,
-        totalSemuaTransaksi,
+        totalSemuaTransaksi: recentTransactions.length,
+        hourlyPeak,
+        weeklyTrend,
+        paymentBreakdown: { totalTunai, totalQris, totalFree },
         topItems,
-        salesChart,
       },
     };
   } catch (error: any) {
-    console.error("Error fetching dashboard stats:", error);
-    return { success: false, error: "Gagal mengambil data statistik dashboard" };
-  }
-}
-
-export async function getKaryawanListAction() {
-  try {
-    const karyawans = await prisma.user.findMany({
-      where: { aktif: true, role: "karyawan" },
-      select: { id: true, nama: true, username: true },
-      orderBy: { nama: "asc" },
-    });
-    return { success: true, data: karyawans };
-  } catch (err) {
-    return { success: false, data: [] };
+    console.error("Get dashboard stats error:", error);
+    return { success: false, error: "Gagal mengambil statistik dashboard" };
   }
 }

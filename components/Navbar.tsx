@@ -9,13 +9,12 @@ import {
   Utensils,
   History,
   LayoutDashboard,
-  Clock,
   LogOut,
   User as UserIcon,
-  ShieldCheck,
   Tag,
   Users,
-  Settings
+  Settings,
+  Package
 } from "lucide-react";
 import { getCurrentUserAction, logoutAction } from "@/app/actions/authActions";
 
@@ -29,26 +28,8 @@ export interface NavbarUser {
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [currentTime, setCurrentTime] = useState<string>("");
   const [user, setUser] = useState<NavbarUser | null>(null);
   const [isPending, startTransition] = useTransition();
-
-  useEffect(() => {
-    // Clock interval
-    const updateTime = () => {
-      const now = new Date();
-      setCurrentTime(
-        now.toLocaleTimeString("id-ID", {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        }) + " WIB"
-      );
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   useEffect(() => {
     // Fetch session user on mount and pathname change
@@ -83,6 +64,12 @@ export default function Navbar() {
       name: "Kelola Menu",
       href: "/menu",
       icon: Utensils,
+      roles: ["admin", "super_admin"],
+    },
+    {
+      name: "Stok & Resep",
+      href: "/stok",
+      icon: Package,
       roles: ["admin", "super_admin"],
     },
     {

@@ -4,6 +4,11 @@ import { useEffect, useState, useTransition } from "react";
 import { getMenuList } from "@/app/actions/menuActions";
 import { createTransaksi, getKaryawanListAction } from "@/app/actions/transaksiActions";
 import { getCurrentUserAction, verifyAdminPasswordAction } from "@/app/actions/authActions";
+import {
+  getActiveShiftAction,
+  startShiftAction,
+  closeShiftAction,
+} from "@/app/actions/shiftActions";
 import { evaluatePromoInMemory } from "@/lib/promoEngine";
 import ReceiptModal, { ReceiptData } from "@/components/ReceiptModal";
 import {
@@ -31,7 +36,10 @@ import {
   UserCheck,
   Tag,
   ShieldCheck,
-  Lock
+  Lock,
+  Clock,
+  LogOut,
+  Printer
 } from "lucide-react";
 
 export interface Category {
@@ -91,7 +99,16 @@ export default function KasirPOS({
   // Session User
   const [currentUser, setCurrentUser] = useState<{ id: number; nama: string; role: string } | null>(null);
 
-  // Cashier Name & Shift State
+  // Shift Control State
+  const [activeShift, setActiveShift] = useState<any | null>(null);
+  const [isStartShiftModalOpen, setIsStartShiftModalOpen] = useState<boolean>(false);
+  const [isCloseShiftModalOpen, setIsCloseShiftModalOpen] = useState<boolean>(false);
+  const [modalAwalInput, setModalAwalInput] = useState<string>("100.000");
+  const [fisikTunaiInput, setFisikTunaiInput] = useState<string>("");
+  const [catatanShiftInput, setCatatanShiftInput] = useState<string>("");
+  const [closedShiftSummary, setClosedShiftSummary] = useState<any | null>(null);
+
+  // Cashier Name State
   const [namaKasir, setNamaKasir] = useState<string>("Budi");
 
   // Employee Order State
@@ -109,8 +126,25 @@ export default function KasirPOS({
   const [paymentMethod, setPaymentMethod] = useState<"TUNAI" | "QRIS">("TUNAI");
   const [isQrisModalOpen, setIsQrisModalOpen] = useState<boolean>(false);
 
+  // Cart State
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [enableTax, setEnableTax] = useState<boolean>(false);
+  const [dibayarInput, setDibayarInput] = useState<string>("");
+  const [errorMsg, setErrorMsg] = useState<string>("");
+  const [isPending, startTransition] = useTransition();
+
+  // Receipt Modal State
+  const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
+
+  const fetchActiveShift = async () => {
+    const shiftRes = await getActiveShiftAction();
+    if (shiftRes.success) {
+      setActiveShift(shiftRes.data);
+    }
+  };
+
   useEffect(() => {
-    // Fetch active session user
+    // Fetch active session user and active shift
     const fetchSession = async () => {
       const u = await getCurrentUserAction();
       if (u) {
@@ -119,6 +153,7 @@ export default function KasirPOS({
       }
     };
     fetchSession();
+    fetchActiveShift();
 
     // Fetch employee list for employee free order
     const fetchKaryawan = async () => {
@@ -131,15 +166,40 @@ export default function KasirPOS({
     fetchKaryawan();
   }, []);
 
-  // Cart State
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [enableTax, setEnableTax] = useState<boolean>(false);
-  const [dibayarInput, setDibayarInput] = useState<string>("");
-  const [errorMsg, setErrorMsg] = useState<string>("");
-  const [isPending, startTransition] = useTransition();
+  const handleStartShiftSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg("");
 
-  // Receipt Modal State
-  const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
+    const modalNum = Number(modalAwalInput.replace(/\D/g, "")) || 0;
+
+    startTransition(async () => {
+      const res = await startShiftAction(modalNum);
+      if (res.success && res.data) {
+        setIsStartShiftModalOpen(false);
+        fetchActiveShift();
+      } else {
+        setErrorMsg(res.error || "Gagal membuka shift");
+      }
+    });
+  };
+
+  const handleCloseShiftSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg("");
+
+    const fisikNum = Number(fisikTunaiInput.replace(/\D/g, "")) || 0;
+
+    startTransition(async () => {
+      const res = await closeShiftAction(fisikNum, catatanShiftInput);
+      if (res.success && res.data) {
+        setClosedShiftSummary(res.data);
+        setIsCloseShiftModalOpen(false);
+        fetchActiveShift();
+      } else {
+        setErrorMsg(res.error || "Gagal menutup shift");
+      }
+    });
+  };
 
   // Filter handler
   const handleFilter = async (catId: number, query: string) => {
@@ -158,7 +218,6 @@ export default function KasirPOS({
     }
   };
 
-  // Point 1: Add to cart evaluating in-memory promo pricing & strikethrough
   const addToCart = (menu: Menu) => {
     if (!menu.tersedia) return;
 
@@ -228,7 +287,7 @@ export default function KasirPOS({
     setErrorMsg("");
   };
 
-  // Calculations & Point 2: Dynamic System Tax %
+  // Calculations & Dynamic System Tax %
   const rawSubtotal = cart.reduce((acc, item) => acc + item.subtotal, 0);
   const subtotal = isEmployeeOrder ? 0 : rawSubtotal;
   const pajak = !isEmployeeOrder && enableTax ? Math.round(subtotal * (systemPajakPercent / 100)) : 0;
@@ -362,6 +421,7 @@ export default function KasirPOS({
         setIsQrisModalOpen(false);
         setIsEmployeeOrder(false);
         clearCart();
+        fetchActiveShift(); // Refresh shift live totals
       } else {
         setErrorMsg(res.error || "Gagal memproses transaksi");
       }
@@ -381,6 +441,72 @@ export default function KasirPOS({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
+      {/* Shift Control Widget Bar */}
+      <div className="p-4 bg-gradient-to-r from-stone-900 via-amber-950 to-stone-900 rounded-3xl text-white shadow-xl border border-amber-900/40 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        {activeShift ? (
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center justify-center font-bold">
+              <Clock className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-sm text-stone-100">
+                  Shift Aktif: {activeShift.namaKasir}
+                </span>
+                <span className="text-[10px] font-black bg-emerald-950 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded-full uppercase">
+                  OPEN
+                </span>
+              </div>
+              <p className="text-xs text-stone-300">
+                Modal Awal: <strong>Rp {activeShift.modalAwal.toLocaleString("id-ID")}</strong> | Live Tunai: <strong>Rp {activeShift.liveTunai.toLocaleString("id-ID")}</strong> ({activeShift.totalTransaksi} Transaksi)
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center justify-center font-bold">
+              <AlertCircle className="w-5 h-5 text-amber-400" />
+            </div>
+            <div>
+              <div className="font-extrabold text-sm text-stone-100">
+                Shift Kasir Belum Dibuka
+              </div>
+              <p className="text-xs text-stone-300">
+                Buka shift kasir terlebih dahulu dan masukkan modal kas awal laci.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 shrink-0">
+          {activeShift ? (
+            <button
+              type="button"
+              onClick={() => {
+                setFisikTunaiInput(
+                  String(activeShift.modalAwal + activeShift.liveTunai)
+                );
+                setCatatanShiftInput("");
+                setIsCloseShiftModalOpen(true);
+              }}
+              className="px-4 py-2 bg-gradient-to-r from-red-700 to-red-900 hover:from-red-600 hover:to-red-800 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer border border-red-500/40"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Tutup Shift Kasir (Close Shift)</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsStartShiftModalOpen(true)}
+              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-800 hover:from-emerald-500 hover:to-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer border border-emerald-500/40"
+            >
+              <Clock className="w-4 h-4" />
+              <span>Buka Shift Kasir Baru</span>
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Search & Category Filter Header */}
       <div className="bg-white rounded-3xl p-4 sm:p-6 shadow-md border border-stone-200 space-y-4 coffee-card-shadow">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
@@ -463,7 +589,7 @@ export default function KasirPOS({
                 const isOut = !menu.tersedia;
                 const hasImgError = imgErrors[menu.id];
 
-                // Point 1: Evaluate Promo for visual price strikethrough
+                // Evaluate Promo for visual price strikethrough
                 const promoRes = evaluatePromoInMemory(menu.id, menu.harga, menu.kategoriId, activePromos);
                 const isDiscounted = promoRes !== null && promoRes.hargaPromo < menu.harga;
 
@@ -484,7 +610,7 @@ export default function KasirPOS({
                       </div>
                     )}
 
-                    {/* Point 1: Promo Badge Tag */}
+                    {/* Promo Badge Tag */}
                     {isDiscounted && !isOut && (
                       <div className="absolute top-2.5 left-2.5 z-10 bg-gradient-to-r from-red-600 to-amber-600 text-white font-extrabold text-[10px] px-2 py-0.5 rounded-full shadow-md border border-red-300 flex items-center gap-1">
                         <Tag className="w-3 h-3" />
@@ -518,7 +644,7 @@ export default function KasirPOS({
                       )}
                     </div>
 
-                    {/* Card Content & Point 1 Price Strikethrough */}
+                    {/* Card Content */}
                     <div className="p-3.5 sm:p-4 flex-1 flex flex-col justify-between space-y-2">
                       <div>
                         <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-full inline-block mb-1">
@@ -530,7 +656,6 @@ export default function KasirPOS({
                       </div>
 
                       <div className="flex items-center justify-between pt-1 border-t border-stone-100">
-                        {/* Point 1: Render Struck-Through Price + Discounted Price */}
                         <div>
                           {isDiscounted ? (
                             <div className="flex flex-col">
@@ -668,7 +793,7 @@ export default function KasirPOS({
               </div>
             )}
 
-            {/* Cart Item List with Point 1 Price Strikethrough */}
+            {/* Cart Item List */}
             <div className="p-4 overflow-y-auto space-y-3 flex-1 divide-y divide-stone-100">
               {cart.length === 0 ? (
                 <div className="py-10 text-center space-y-2 text-stone-400">
@@ -695,7 +820,6 @@ export default function KasirPOS({
                           )}
                         </div>
 
-                        {/* Point 1: Cart Price Strikethrough */}
                         <div className="text-[11px] text-amber-950 font-bold flex items-center gap-1.5 mt-0.5">
                           {hasDiscount && (
                             <span className="text-[10px] text-red-500 line-through font-normal">
@@ -748,7 +872,7 @@ export default function KasirPOS({
               )}
             </div>
 
-            {/* Payment Summary Footer & Point 2 Dynamic Tax %} */}
+            {/* Payment Summary Footer */}
             {cart.length > 0 && (
               <div className="p-4 bg-stone-50/90 border-t border-stone-200 space-y-3">
                 {!isEmployeeOrder && (
@@ -921,6 +1045,223 @@ export default function KasirPOS({
           </div>
         </div>
       </div>
+
+      {/* Modal Start Shift (Modal Awal Kas) */}
+      {isStartShiftModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl border border-stone-200 w-full max-w-md overflow-hidden flex flex-col">
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-950 to-stone-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2 text-emerald-400">
+                <Clock className="w-5 h-5" />
+                <h3 className="font-extrabold text-base">Buka Shift Kasir Baru</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsStartShiftModalOpen(false)}
+                className="text-stone-400 hover:text-white p-1 rounded-full cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleStartShiftSubmit} className="p-6 space-y-4">
+              <p className="text-xs text-stone-600">
+                Masukkan jumlah modal kas awal di laci kasir (*cash drawer float*) untuk memulai shift.
+              </p>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-stone-700">Modal Kas Awal Laci (Rp)</label>
+                <input
+                  type="text"
+                  value={modalAwalInput}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, "");
+                    setModalAwalInput(val ? Number(val).toLocaleString("id-ID") : "");
+                  }}
+                  placeholder="Contoh: 100.000"
+                  className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-sm font-bold text-stone-900 focus:outline-none focus:border-emerald-600 font-mono"
+                  required
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-stone-100">
+                <button
+                  type="button"
+                  onClick={() => setIsStartShiftModalOpen(false)}
+                  className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs rounded-xl cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPending}
+                  className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-800 hover:from-emerald-500 hover:to-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer disabled:opacity-50"
+                >
+                  {isPending ? "Membuka Shift..." : "Konfirmasi Buka Shift"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Close Shift (Penutupan Shift & Hitung Uang Laci) */}
+      {isCloseShiftModalOpen && activeShift && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl border border-stone-200 w-full max-w-md overflow-hidden flex flex-col">
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-red-950 via-stone-900 to-red-950 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2 text-red-400">
+                <LogOut className="w-5 h-5" />
+                <h3 className="font-extrabold text-base">Tutup Shift Kasir (Close Shift)</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCloseShiftModalOpen(false)}
+                className="text-stone-400 hover:text-white p-1 rounded-full cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCloseShiftSubmit} className="p-6 space-y-4">
+              <div className="p-3 bg-stone-100 border border-stone-200 rounded-2xl space-y-1 text-xs text-stone-700">
+                <div className="flex justify-between">
+                  <span>Modal Awal Kas:</span>
+                  <span className="font-bold">Rp {activeShift.modalAwal.toLocaleString("id-ID")}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Total Tunai Sistem:</span>
+                  <span className="font-bold text-emerald-700">+ Rp {activeShift.liveTunai.toLocaleString("id-ID")}</span>
+                </div>
+                <div className="flex justify-between border-t border-stone-200 pt-1 font-extrabold text-stone-900">
+                  <span>Target Uang Fisik Laci:</span>
+                  <span className="font-mono">Rp {(activeShift.modalAwal + activeShift.liveTunai).toLocaleString("id-ID")}</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-stone-700">Hitung Uang Fisik Tunai di Laci (Rp)</label>
+                <input
+                  type="text"
+                  value={fisikTunaiInput}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, "");
+                    setFisikTunaiInput(val ? Number(val).toLocaleString("id-ID") : "");
+                  }}
+                  placeholder="Masukkan jumlah fisik uang tunai"
+                  className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-sm font-bold text-stone-900 focus:outline-none focus:border-red-600 font-mono"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-stone-700">Catatan Shift (Opsional)</label>
+                <textarea
+                  rows={2}
+                  value={catatanShiftInput}
+                  onChange={(e) => setCatatanShiftInput(e.target.value)}
+                  placeholder="Contoh: Uang pecahan 100rb habis untuk kembalian"
+                  className="w-full p-2.5 bg-stone-50 border border-stone-300 rounded-xl text-xs text-stone-900 focus:outline-none focus:border-red-600"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-stone-100">
+                <button
+                  type="button"
+                  onClick={() => setIsCloseShiftModalOpen(false)}
+                  className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs rounded-xl cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPending}
+                  className="px-5 py-2.5 bg-gradient-to-r from-red-700 to-red-900 hover:from-red-600 hover:to-red-800 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer disabled:opacity-50"
+                >
+                  {isPending ? "Menutup Shift..." : "Konfirmasi Tutup Shift"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Closed Shift Summary Printable Modal */}
+      {closedShiftSummary && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl border border-stone-200 w-full max-w-md overflow-hidden flex flex-col no-print">
+            <div className="p-4 bg-stone-900 text-white flex items-center justify-between">
+              <h3 className="font-extrabold text-sm flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                Laporan Penutupan Shift Kasir
+              </h3>
+              <button
+                type="button"
+                onClick={() => setClosedShiftSummary(null)}
+                className="text-stone-400 hover:text-white p-1 rounded-full cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 text-xs">
+              <div className="text-center border-b border-stone-200 pb-3">
+                <h2 className="text-base font-black text-stone-900">LEMBAR REKAP TUTUP SHIFT</h2>
+                <p className="text-[11px] text-stone-500 font-mono">
+                  {new Date(closedShiftSummary.waktuTutup).toLocaleString("id-ID")}
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex justify-between">
+                  <span>Nama Kasir:</span>
+                  <span className="font-bold">{closedShiftSummary.namaKasir}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Modal Awal Laci:</span>
+                  <span className="font-mono">Rp {closedShiftSummary.modalAwal.toLocaleString("id-ID")}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Total Tunai Sistem:</span>
+                  <span className="font-mono font-bold text-emerald-700">Rp {closedShiftSummary.totalTunaiSistem.toLocaleString("id-ID")}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Total QRIS Sistem:</span>
+                  <span className="font-mono">Rp {closedShiftSummary.totalQrisSistem.toLocaleString("id-ID")}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Fisik Uang di Laci:</span>
+                  <span className="font-mono font-black text-stone-900">Rp {closedShiftSummary.hitungFisikTunai?.toLocaleString("id-ID")}</span>
+                </div>
+                <div className="flex justify-between pt-2 border-t border-stone-200 text-sm font-black">
+                  <span>Selisih Kas (Over/Short):</span>
+                  <span className={`font-mono ${closedShiftSummary.selisihKas < 0 ? "text-red-600" : closedShiftSummary.selisihKas > 0 ? "text-emerald-600" : "text-stone-800"}`}>
+                    Rp {closedShiftSummary.selisihKas?.toLocaleString("id-ID")}
+                  </span>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-stone-100 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="flex-1 py-2.5 bg-stone-900 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Printer className="w-4 h-4 text-amber-400" />
+                  <span>Cetak Struk Shift</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setClosedShiftSummary(null)}
+                  className="px-4 py-2.5 bg-stone-100 text-stone-700 font-bold text-xs rounded-xl cursor-pointer"
+                >
+                  Selesai
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Admin Authorization Password Modal */}
       {isAdminAuthModalOpen && (
