@@ -173,11 +173,10 @@ export default function ReceiptModal({ receipt, onClose }: ReceiptModalProps) {
         <div className="p-4 sm:p-6 overflow-y-auto bg-stone-900/60 flex-1 flex justify-center">
           <div
             id="printable-receipt"
-            className="w-full bg-[#FAF8F5] p-5 shadow-2xl font-mono text-xs text-stone-900 space-y-3 relative border-t-4 border-amber-900/40 rounded-t-xl"
+            className="w-full bg-[#FAF8F5] p-4 sm:p-5 shadow-2xl font-mono text-xs text-stone-900 space-y-2.5 relative border-t-4 border-amber-900/40 rounded-t-xl pb-10"
             style={{
               clipPath:
                 "polygon(0 0, 100% 0, 100% calc(100% - 10px), 96% 100%, 92% calc(100% - 10px), 88% 100%, 84% calc(100% - 10px), 80% 100%, 76% calc(100% - 10px), 72% 100%, 68% calc(100% - 10px), 64% 100%, 60% calc(100% - 10px), 56% 100%, 52% calc(100% - 10px), 48% 100%, 44% calc(100% - 10px), 40% 100%, 36% calc(100% - 10px), 32% 100%, 28% calc(100% - 10px), 24% 100%, 20% calc(100% - 10px), 16% 100%, 12% calc(100% - 10px), 8% 100%, 4% calc(100% - 10px), 0 100%)",
-              paddingBottom: "2.5rem",
             }}
           >
             {/* Header Thermal Banner */}
