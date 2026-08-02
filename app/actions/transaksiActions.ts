@@ -23,6 +23,9 @@ export interface CreateTransaksiPayload {
   jenisTransaksi?: "regular" | "karyawan";
   karyawanId?: number;
   namaKaryawan?: string;
+  memberId?: number;
+  namaPelanggan?: string;
+  nomorHpPelanggan?: string;
 }
 
 export async function createTransaksi(payload: CreateTransaksiPayload) {
@@ -37,6 +40,9 @@ export async function createTransaksi(payload: CreateTransaksiPayload) {
       jenisTransaksi = "regular",
       karyawanId,
       namaKaryawan,
+      memberId,
+      namaPelanggan,
+      nomorHpPelanggan,
     } = payload;
 
     if (!items || items.length === 0) {
@@ -128,6 +134,32 @@ export async function createTransaksi(payload: CreateTransaksiPayload) {
     const activeKasirId = session ? session.id : undefined;
     const finalNamaKasir = namaKasir || (session ? session.nama : "Kasir Cafe");
 
+    // Calculate Member Points (1 point per Rp 10.000 spent)
+    let poinDiperoleh = 0;
+    if (memberId && !isKaryawanOrder) {
+      poinDiperoleh = Math.floor(calculatedTotalHarga / 10000);
+      try {
+        const member = await prisma.member.findUnique({ where: { id: memberId } });
+        if (member) {
+          const newPoin = member.poin + poinDiperoleh;
+          let newTier = "BRONZE";
+          if (newPoin >= 300) newTier = "PLATINUM";
+          else if (newPoin >= 150) newTier = "GOLD";
+          else if (newPoin >= 50) newTier = "SILVER";
+
+          await prisma.member.update({
+            where: { id: memberId },
+            data: {
+              poin: newPoin,
+              tipeMember: newTier,
+            },
+          });
+        }
+      } catch (e) {
+        console.error("Update member points error:", e);
+      }
+    }
+
     // Deduct raw material inventory based on menu recipes
     if (recipes.length > 0) {
       for (const item of items) {
@@ -155,6 +187,10 @@ export async function createTransaksi(payload: CreateTransaksiPayload) {
         namaKaryawan: isKaryawanOrder ? namaKaryawan : undefined,
         kasirId: activeKasirId,
         namaKasir: finalNamaKasir,
+        memberId: memberId || undefined,
+        namaPelanggan: namaPelanggan || undefined,
+        nomorHpPelanggan: nomorHpPelanggan || undefined,
+        poinDiperoleh,
         metodePembayaran: isKaryawanOrder ? "FREE ORDER" : metodePembayaran || "TUNAI",
         subtotal: calculatedSubtotal,
         totalHargaAsli: totalHargaAsliSum,
@@ -169,11 +205,13 @@ export async function createTransaksi(payload: CreateTransaksiPayload) {
       },
       include: {
         detailTransaksi: true,
+        member: true,
       },
     });
 
     revalidatePath("/riwayat");
     revalidatePath("/dashboard");
+    revalidatePath("/members");
     revalidatePath("/stok");
     revalidatePath("/");
 
@@ -223,6 +261,7 @@ export async function getTransaksiHistory(
       where,
       include: {
         detailTransaksi: true,
+        member: true,
       },
       orderBy: {
         tanggal: "desc",
@@ -300,6 +339,30 @@ export async function voidTransaksiAction(transaksiId: number, reason: string) {
       }
     }
 
+    // Revert member points if member transaction
+    if (tx.memberId && tx.poinDiperoleh > 0) {
+      try {
+        const member = await prisma.member.findUnique({ where: { id: tx.memberId } });
+        if (member) {
+          const newPoin = Math.max(0, member.poin - tx.poinDiperoleh);
+          let newTier = "BRONZE";
+          if (newPoin >= 300) newTier = "PLATINUM";
+          else if (newPoin >= 150) newTier = "GOLD";
+          else if (newPoin >= 50) newTier = "SILVER";
+
+          await prisma.member.update({
+            where: { id: tx.memberId },
+            data: {
+              poin: newPoin,
+              tipeMember: newTier,
+            },
+          });
+        }
+      } catch (e) {
+        console.error("Revert member points error:", e);
+      }
+    }
+
     const voided = await prisma.transaksi.update({
       where: { id: transaksiId },
       data: {
@@ -319,6 +382,7 @@ export async function voidTransaksiAction(transaksiId: number, reason: string) {
 
     revalidatePath("/riwayat");
     revalidatePath("/dashboard");
+    revalidatePath("/members");
     revalidatePath("/stok");
     revalidatePath("/");
 

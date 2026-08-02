@@ -14,7 +14,8 @@ import {
   Tag,
   Users,
   Settings,
-  Package
+  Package,
+  Award
 } from "lucide-react";
 import { getCurrentUserAction, logoutAction } from "@/app/actions/authActions";
 
@@ -58,6 +59,12 @@ export default function Navbar() {
       name: "Kasir (POS)",
       href: "/",
       icon: ShoppingCart,
+      roles: ["karyawan", "admin", "super_admin"],
+    },
+    {
+      name: "Member Pelanggan",
+      href: "/members",
+      icon: Award,
       roles: ["karyawan", "admin", "super_admin"],
     },
     {

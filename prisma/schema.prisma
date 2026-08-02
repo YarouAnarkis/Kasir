@@ -68,6 +68,18 @@ model Menu {
   updatedAt       DateTime          @updatedAt
 }
 
+model Member {
+  id            Int         @id @default(autoincrement())
+  nama          String
+  nomorHp       String      @unique
+  email         String?
+  poin          Int         @default(0)
+  tipeMember    String      @default("BRONZE") // "BRONZE" | "SILVER" | "GOLD" | "PLATINUM"
+  transaksiList Transaksi[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
 model ShiftKasir {
   id                  Int       @id @default(autoincrement())
   kasirId             Int
@@ -123,6 +135,11 @@ model Transaksi {
   kasirId          Int?
   kasir            User?             @relation("KasirUserRelation", fields: [kasirId], references: [id], onDelete: SetNull)
   namaKasir        String            @default("Kasir Cafe")
+  memberId         Int?
+  member           Member?           @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  namaPelanggan    String?
+  nomorHpPelanggan String?
+  poinDiperoleh    Int               @default(0)
   metodePembayaran String            @default("TUNAI")
   subtotal         Int
   totalHargaAsli   Int               @default(0) // Total nilai asli sebelum diskon

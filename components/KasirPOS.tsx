@@ -9,6 +9,7 @@ import {
   startShiftAction,
   closeShiftAction,
 } from "@/app/actions/shiftActions";
+import { findMemberByHpAction, createMemberAction } from "@/app/actions/memberActions";
 import { evaluatePromoInMemory } from "@/lib/promoEngine";
 import ReceiptModal, { ReceiptData } from "@/components/ReceiptModal";
 import {
@@ -39,6 +40,8 @@ import {
   Lock,
   Clock,
   LogOut,
+  Award,
+  UserPlus,
   Printer
 } from "lucide-react";
 
@@ -116,6 +119,53 @@ export default function KasirPOS({
   const [karyawanList, setKaryawanList] = useState<KaryawanOption[]>([]);
   const [selectedKaryawanId, setSelectedKaryawanId] = useState<number | null>(null);
   const [customKaryawanNama, setCustomKaryawanNama] = useState<string>("");
+
+  // Member Integration State
+  const [selectedMember, setSelectedMember] = useState<any | null>(null);
+  const [memberHpSearch, setMemberHpSearch] = useState<string>("");
+  const [memberSearchError, setMemberSearchError] = useState<string>("");
+  const [isMemberSearching, setIsMemberSearching] = useState<boolean>(false);
+  const [isQuickMemberModalOpen, setIsQuickMemberModalOpen] = useState<boolean>(false);
+  const [quickMemberNama, setQuickMemberNama] = useState<string>("");
+  const [quickMemberHp, setQuickMemberHp] = useState<string>("");
+
+  const handleSearchMember = () => {
+    if (!memberHpSearch || !memberHpSearch.trim()) return;
+    setMemberSearchError("");
+    setIsMemberSearching(true);
+    startTransition(async () => {
+      const res = await findMemberByHpAction(memberHpSearch);
+      setIsMemberSearching(false);
+      if (res.success && res.data) {
+        setSelectedMember(res.data);
+        setMemberSearchError("");
+      } else {
+        setSelectedMember(null);
+        setMemberSearchError(res.error || "Member tidak ditemukan");
+      }
+    });
+  };
+
+  const handleQuickMemberSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickMemberNama.trim() || !quickMemberHp.trim()) return;
+
+    startTransition(async () => {
+      const res = await createMemberAction({
+        nama: quickMemberNama,
+        nomorHp: quickMemberHp,
+      });
+
+      if (res.success && res.data) {
+        setSelectedMember(res.data);
+        setIsQuickMemberModalOpen(false);
+        setMemberHpSearch(res.data.nomorHp);
+        setMemberSearchError("");
+      } else {
+        alert(res.error || "Gagal mendaftarkan member baru");
+      }
+    });
+  };
 
   // Admin Auth Modal State
   const [isAdminAuthModalOpen, setIsAdminAuthModalOpen] = useState<boolean>(false);
@@ -399,6 +449,9 @@ export default function KasirPOS({
         jenisTransaksi: isEmployeeOrder ? "karyawan" : "regular",
         karyawanId: isEmployeeOrder ? targetKaryawanId : undefined,
         namaKaryawan: isEmployeeOrder ? targetKaryawanNama : undefined,
+        memberId: selectedMember ? selectedMember.id : undefined,
+        namaPelanggan: selectedMember ? selectedMember.nama : undefined,
+        nomorHpPelanggan: selectedMember ? selectedMember.nomorHp : undefined,
       });
 
       if (res.success && res.data) {
@@ -416,10 +469,18 @@ export default function KasirPOS({
           kembalian: res.data.kembalian,
           totalHargaAsli: res.data.totalHargaAsli,
           totalDiskon: res.data.totalDiskon,
+          memberId: res.data.memberId,
+          namaPelanggan: res.data.namaPelanggan,
+          nomorHpPelanggan: res.data.nomorHpPelanggan,
+          poinDiperoleh: res.data.poinDiperoleh,
+          member: res.data.member,
           detailTransaksi: res.data.detailTransaksi,
         });
         setIsQrisModalOpen(false);
         setIsEmployeeOrder(false);
+        setSelectedMember(null);
+        setMemberHpSearch("");
+        setMemberSearchError("");
         clearCart();
         fetchActiveShift(); // Refresh shift live totals
       } else {
@@ -914,6 +975,92 @@ export default function KasirPOS({
                 </div>
 
                 {!isEmployeeOrder && (
+                  <div className="p-3 bg-stone-100/90 rounded-2xl border border-stone-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <Award className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Member Pelanggan (Poin Loyalty)</span>
+                      </label>
+                      {selectedMember && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedMember(null);
+                            setMemberHpSearch("");
+                            setMemberSearchError("");
+                          }}
+                          className="text-[10px] text-red-600 hover:underline font-bold"
+                        >
+                          Hapus Member
+                        </button>
+                      )}
+                    </div>
+
+                    {selectedMember ? (
+                      <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-xl text-xs flex items-center justify-between">
+                        <div>
+                          <div className="font-extrabold text-amber-950 flex items-center gap-1.5">
+                            <span>👤 {selectedMember.nama}</span>
+                            <span className="text-[9px] bg-amber-200 text-amber-950 px-1.5 py-0.2 rounded font-black border border-amber-300">
+                              {selectedMember.tipeMember}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-amber-900 mt-0.5">
+                            📱 {selectedMember.nomorHp} • Total: <strong>{selectedMember.poin} Poin</strong>
+                          </p>
+                        </div>
+                        <span className="text-[10px] font-extrabold bg-emerald-600 text-white px-2 py-1 rounded-lg shrink-0">
+                          +{Math.floor(totalHarga / 10000)} Poin
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <div className="flex gap-1.5">
+                          <input
+                            type="text"
+                            value={memberHpSearch}
+                            onChange={(e) => setMemberHpSearch(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                handleSearchMember();
+                              }
+                            }}
+                            placeholder="Masukkan No. HP Member..."
+                            className="flex-1 px-3 py-1.5 bg-white border border-stone-300 rounded-xl text-xs font-bold text-stone-900 focus:outline-none focus:border-amber-600 font-mono"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleSearchMember}
+                            disabled={isMemberSearching}
+                            className="px-3 py-1.5 bg-amber-800 hover:bg-amber-900 text-white font-extrabold text-xs rounded-xl shadow-sm cursor-pointer disabled:opacity-50"
+                          >
+                            {isMemberSearching ? "..." : "Cari"}
+                          </button>
+                        </div>
+
+                        {memberSearchError && (
+                          <div className="flex items-center justify-between text-[11px] text-red-600 bg-red-50 p-2 rounded-xl border border-red-200">
+                            <span>{memberSearchError}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setQuickMemberHp(memberHpSearch);
+                                setQuickMemberNama("");
+                                setIsQuickMemberModalOpen(true);
+                              }}
+                              className="text-[10px] bg-amber-700 text-white px-2 py-0.5 rounded-lg font-extrabold hover:bg-amber-800 cursor-pointer"
+                            >
+                              + Member Baru
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {!isEmployeeOrder && (
                   <div className="space-y-2 pt-1">
                     <label className="block text-[11px] font-bold text-stone-600 uppercase tracking-wider">
                       Metode Pembayaran
@@ -1386,6 +1533,70 @@ export default function KasirPOS({
                 <span>Konfirmasi Pembayaran QRIS Berhasil</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Member Registration Modal */}
+      {isQuickMemberModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl border border-stone-200 w-full max-w-md overflow-hidden flex flex-col">
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-stone-900 to-amber-950 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2 text-amber-400 font-extrabold text-sm">
+                <UserPlus className="w-5 h-5" />
+                <span>Daftar Member Baru (POS)</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsQuickMemberModalOpen(false)}
+                className="text-stone-400 hover:text-white p-1 rounded-full cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleQuickMemberSubmit} className="p-6 space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-stone-700">Nama Pelanggan</label>
+                <input
+                  type="text"
+                  value={quickMemberNama}
+                  onChange={(e) => setQuickMemberNama(e.target.value)}
+                  placeholder="Contoh: Budi Santoso"
+                  className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-sm font-bold text-stone-900 focus:outline-none focus:border-amber-600"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-stone-700">No. HP / WhatsApp Active</label>
+                <input
+                  type="text"
+                  value={quickMemberHp}
+                  onChange={(e) => setQuickMemberHp(e.target.value)}
+                  placeholder="Contoh: 081234567890"
+                  className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-sm font-bold text-stone-900 focus:outline-none focus:border-amber-600 font-mono"
+                  required
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-stone-100">
+                <button
+                  type="button"
+                  onClick={() => setIsQuickMemberModalOpen(false)}
+                  className="px-4 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs rounded-xl cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPending}
+                  className="px-5 py-2.5 bg-gradient-to-r from-amber-700 to-amber-900 hover:from-amber-600 hover:to-amber-800 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer disabled:opacity-50"
+                >
+                  {isPending ? "Daftar..." : "Simpan & Pilih Member"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

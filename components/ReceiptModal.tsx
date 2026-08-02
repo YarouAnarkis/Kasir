@@ -1,6 +1,6 @@
 "use client";
 
-import { Printer, X, CheckCircle2, Coffee, QrCode, UserCheck } from "lucide-react";
+import { Printer, X, CheckCircle2, Coffee, QrCode, UserCheck, Send, Award, Phone } from "lucide-react";
 
 export interface ReceiptDetailItem {
   id?: number;
@@ -27,6 +27,17 @@ export interface ReceiptData {
   kembalian: number;
   totalHargaAsli?: number;
   totalDiskon?: number;
+  memberId?: number | null;
+  namaPelanggan?: string | null;
+  nomorHpPelanggan?: string | null;
+  poinDiperoleh?: number;
+  member?: {
+    id: number;
+    nama: string;
+    nomorHp: string;
+    poin: number;
+    tipeMember: string;
+  } | null;
   detailTransaksi: ReceiptDetailItem[];
 }
 
@@ -50,6 +61,81 @@ export default function ReceiptModal({ receipt, onClose }: ReceiptModalProps) {
   const isKaryawan = receipt.jenisTransaksi === "karyawan";
   const strukHash = receipt.nomorStruk.slice(-8).toUpperCase();
 
+  const getWaPhone = () => {
+    const rawHp = receipt.nomorHpPelanggan || (receipt.member ? receipt.member.nomorHp : "");
+    if (!rawHp) return "";
+    const cleanHp = rawHp.replace(/\D/g, "");
+    return cleanHp.startsWith("0") ? `62${cleanHp.slice(1)}` : cleanHp;
+  };
+
+  const targetWaPhone = getWaPhone();
+
+  const handleSendWhatsApp = () => {
+    const phone = targetWaPhone;
+
+    const dateStr = new Date(receipt.tanggal).toLocaleString("id-ID", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+
+    const itemsText = receipt.detailTransaksi
+      .map(
+        (item) =>
+          `• ${item.jumlah}x ${item.namaMenu} @ Rp ${item.hargaSatuan.toLocaleString("id-ID")} = Rp ${item.subtotal.toLocaleString("id-ID")}`
+      )
+      .join("\n");
+
+    let msg = `☕ *STRUK PEMBELIAN - KASIR COFFEE SHOP*\n`;
+    msg += `----------------------------------------\n`;
+    msg += `No. Struk: #${strukHash}\n`;
+    msg += `Waktu: ${dateStr}\n`;
+    msg += `Kasir: ${receipt.namaKasir || "Kasir Cafe"}\n`;
+    if (isKaryawan) {
+      msg += `Penerima: ${receipt.namaKaryawan || "Karyawan Store"} (FREE ORDER)\n`;
+    } else {
+      msg += `Pelanggan: ${receipt.namaPelanggan || (receipt.member ? receipt.member.nama : "Pelanggan General")}\n`;
+      msg += `Metode Bayar: ${receipt.metodePembayaran || "TUNAI"}\n`;
+    }
+    msg += `----------------------------------------\n`;
+    msg += `*Rincian Pesanan:*\n${itemsText}\n`;
+    msg += `----------------------------------------\n`;
+    msg += `Subtotal: Rp ${receipt.subtotal.toLocaleString("id-ID")}\n`;
+    if (receipt.pajak > 0) {
+      msg += `Pajak Resto: Rp ${receipt.pajak.toLocaleString("id-ID")}\n`;
+    }
+    msg += `*TOTAL BAYAR: Rp ${receipt.totalHarga.toLocaleString("id-ID")}*\n`;
+    if (!isKaryawan) {
+      msg += `Dibayar: Rp ${receipt.dibayar.toLocaleString("id-ID")}\n`;
+      msg += `Kembalian: Rp ${receipt.kembalian.toLocaleString("id-ID")}\n`;
+    }
+    if (receipt.poinDiperoleh && receipt.poinDiperoleh > 0) {
+      msg += `----------------------------------------\n`;
+      msg += `🎁 *Poin Diperoleh: +${receipt.poinDiperoleh} Poin*\n`;
+      if (receipt.member) {
+        msg += `Total Poin Member (${receipt.member.tipeMember}): ${receipt.member.poin} Poin\n`;
+      }
+    }
+    msg += `----------------------------------------\n`;
+    msg += `Terima kasih telah berkunjung di Kasir Coffee Shop! ☕\n`;
+    msg += `_Simpan pesan ini sebagai bukti transaksi resmi._`;
+
+    const waUrl = `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(msg)}`;
+    window.open(waUrl, "_blank");
+  };
+
+  const getTierBadge = (tier?: string) => {
+    switch (tier) {
+      case "PLATINUM":
+        return { label: "💎 PLATINUM", style: "bg-cyan-100 text-cyan-900 border-cyan-300" };
+      case "GOLD":
+        return { label: "🥇 GOLD", style: "bg-amber-100 text-amber-900 border-amber-300" };
+      case "SILVER":
+        return { label: "🥈 SILVER", style: "bg-slate-200 text-slate-900 border-slate-300" };
+      default:
+        return { label: "🏆 BRONZE", style: "bg-orange-100 text-orange-900 border-orange-300" };
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-md animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl shadow-2xl border border-stone-200 w-full max-w-md overflow-hidden flex flex-col max-h-[92vh] coffee-card-shadow">
@@ -70,7 +156,7 @@ export default function ReceiptModal({ receipt, onClose }: ReceiptModalProps) {
                 {isKaryawan ? "Pesan Karyawan Berhasil" : "Transaksi Berhasil"}
               </h3>
               <p className="text-[11px] text-stone-300">
-                Struk Thermal Ready - #{strukHash}
+                Struk Thermal & WhatsApp - #{strukHash}
               </p>
             </div>
           </div>
@@ -131,6 +217,25 @@ export default function ReceiptModal({ receipt, onClose }: ReceiptModalProps) {
                 <span>Kasir:</span>
                 <span className="font-bold">{receipt.namaKasir || "Kasir Cafe"}</span>
               </div>
+
+              {receipt.member || receipt.namaPelanggan ? (
+                <div className="bg-amber-100/70 p-2 rounded-xl border border-amber-300 space-y-1 mt-1 font-sans">
+                  <div className="flex justify-between items-center text-xs font-bold text-amber-950">
+                    <span>👤 {receipt.namaPelanggan || receipt.member?.nama}</span>
+                    {receipt.member && (
+                      <span className={`text-[9px] px-1.5 py-0.2 rounded border font-black ${getTierBadge(receipt.member.tipeMember).style}`}>
+                        {getTierBadge(receipt.member.tipeMember).label}
+                      </span>
+                    )}
+                  </div>
+                  {receipt.poinDiperoleh && receipt.poinDiperoleh > 0 ? (
+                    <div className="text-[10px] font-bold text-emerald-800 flex justify-between pt-0.5 border-t border-amber-200">
+                      <span>Poin Diperoleh:</span>
+                      <span>+{receipt.poinDiperoleh} Poin</span>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
               {isKaryawan ? (
                 <div className="flex justify-between font-bold text-amber-950 bg-amber-200/50 px-1.5 py-0.5 rounded">
@@ -247,19 +352,36 @@ export default function ReceiptModal({ receipt, onClose }: ReceiptModalProps) {
         </div>
 
         {/* Modal Actions (Hidden on Print) */}
-        <div className="p-4 bg-stone-50 border-t border-stone-200 flex gap-3 no-print">
+        <div className="p-4 bg-stone-50 border-t border-stone-200 flex flex-col gap-2.5 no-print">
+          <div className="flex gap-2">
+            <button
+              onClick={handleSendWhatsApp}
+              disabled={!targetWaPhone}
+              className={`flex-1 py-3 px-4 rounded-2xl font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer ${
+                targetWaPhone
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                  : "bg-stone-200 text-stone-400 cursor-not-allowed"
+              }`}
+              title={targetWaPhone ? `Kirim ke WA (${targetWaPhone})` : "Nomor WhatsApp pelanggan belum terdaftar"}
+            >
+              <Send className="w-4 h-4" />
+              <span>{targetWaPhone ? "Kirim Struk WA" : "Kirim WA (No HP -)"}</span>
+            </button>
+
+            <button
+              onClick={handlePrint}
+              className="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-800 to-amber-950 hover:from-amber-900 hover:to-stone-950 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
+            >
+              <Printer className="w-4 h-4 text-amber-300" />
+              <span>Cetak Struk</span>
+            </button>
+          </div>
+
           <button
             onClick={onClose}
-            className="flex-1 py-3 px-4 rounded-2xl border border-stone-300 text-stone-700 font-bold text-sm hover:bg-stone-200 transition-colors cursor-pointer"
+            className="w-full py-2.5 px-4 rounded-xl border border-stone-300 text-stone-700 font-bold text-xs hover:bg-stone-200 transition-colors cursor-pointer"
           >
             Tutup
-          </button>
-          <button
-            onClick={handlePrint}
-            className="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-800 to-amber-950 hover:from-amber-900 hover:to-stone-950 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-950/20 active:scale-[0.98] transition-all cursor-pointer"
-          >
-            <Printer className="w-4 h-4 text-amber-300" />
-            Cetak Struk
           </button>
         </div>
       </div>
