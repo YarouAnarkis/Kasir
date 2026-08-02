@@ -1189,8 +1189,8 @@ export default function KasirPOS({
       {/* Closed Shift Summary Printable Modal */}
       {closedShiftSummary && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl shadow-2xl border border-stone-200 w-full max-w-md overflow-hidden flex flex-col no-print">
-            <div className="p-4 bg-stone-900 text-white flex items-center justify-between">
+          <div className="bg-white rounded-3xl shadow-2xl border border-stone-200 w-full max-w-md overflow-hidden flex flex-col">
+            <div className="p-4 bg-stone-900 text-white flex items-center justify-between no-print">
               <h3 className="font-extrabold text-sm flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-emerald-400" />
                 Laporan Penutupan Shift Kasir
@@ -1204,7 +1204,7 @@ export default function KasirPOS({
               </button>
             </div>
 
-            <div className="p-6 space-y-4 text-xs">
+            <div id="printable-shift-receipt" className="p-6 space-y-4 text-xs font-mono">
               <div className="text-center border-b border-stone-200 pb-3">
                 <h2 className="text-base font-black text-stone-900">LEMBAR REKAP TUTUP SHIFT</h2>
                 <p className="text-[11px] text-stone-500 font-mono">
@@ -1241,7 +1241,7 @@ export default function KasirPOS({
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-stone-100 flex gap-2">
+              <div className="pt-3 border-t border-stone-100 flex gap-2 no-print">
                 <button
                   type="button"
                   onClick={() => window.print()}
