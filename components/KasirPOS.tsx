@@ -442,37 +442,37 @@ export default function KasirPOS({
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       {/* Shift Control Widget Bar */}
-      <div className="p-4 bg-gradient-to-r from-stone-900 via-amber-950 to-stone-900 rounded-3xl text-white shadow-xl border border-amber-900/40 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+      <div className="p-4 sm:p-5 bg-white rounded-3xl border border-stone-200/90 shadow-md flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 coffee-card-shadow">
         {activeShift ? (
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center justify-center font-bold">
-              <Clock className="w-5 h-5 text-emerald-400" />
+          <div className="flex items-center gap-3.5 bg-emerald-50/80 p-3 rounded-2xl border border-emerald-200/80 flex-1">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-sm shrink-0">
+              <Clock className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-extrabold text-sm text-stone-100">
+                <span className="font-extrabold text-sm text-stone-900">
                   Shift Aktif: {activeShift.namaKasir}
                 </span>
-                <span className="text-[10px] font-black bg-emerald-950 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded-full uppercase">
+                <span className="text-[10px] font-black bg-emerald-600 text-white px-2 py-0.5 rounded-full uppercase tracking-wider">
                   OPEN
                 </span>
               </div>
-              <p className="text-xs text-stone-300">
-                Modal Awal: <strong>Rp {activeShift.modalAwal.toLocaleString("id-ID")}</strong> | Live Tunai: <strong>Rp {activeShift.liveTunai.toLocaleString("id-ID")}</strong> ({activeShift.totalTransaksi} Transaksi)
+              <p className="text-xs text-stone-600 mt-0.5">
+                Modal Awal: <strong className="text-stone-900 font-mono">Rp {activeShift.modalAwal.toLocaleString("id-ID")}</strong> • Live Tunai: <strong className="text-emerald-700 font-mono">Rp {activeShift.liveTunai.toLocaleString("id-ID")}</strong> ({activeShift.totalTransaksi} Transaksi)
               </p>
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center justify-center font-bold">
-              <AlertCircle className="w-5 h-5 text-amber-400" />
+          <div className="flex items-center gap-3.5 bg-amber-50/80 p-3 rounded-2xl border border-amber-200/80 flex-1">
+            <div className="w-10 h-10 rounded-xl bg-amber-600 text-white flex items-center justify-center font-bold shadow-sm shrink-0">
+              <AlertCircle className="w-5 h-5" />
             </div>
             <div>
-              <div className="font-extrabold text-sm text-stone-100">
+              <div className="font-extrabold text-sm text-amber-950">
                 Shift Kasir Belum Dibuka
               </div>
-              <p className="text-xs text-stone-300">
-                Buka shift kasir terlebih dahulu dan masukkan modal kas awal laci.
+              <p className="text-xs text-amber-900/80 mt-0.5">
+                Silakan buka shift kasir baru dan masukkan modal kas awal laci sebelum memulai transaksi.
               </p>
             </div>
           </div>
@@ -489,16 +489,16 @@ export default function KasirPOS({
                 setCatatanShiftInput("");
                 setIsCloseShiftModalOpen(true);
               }}
-              className="px-4 py-2 bg-gradient-to-r from-red-700 to-red-900 hover:from-red-600 hover:to-red-800 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer border border-red-500/40"
+              className="px-4 py-2.5 bg-gradient-to-r from-red-600 to-red-800 hover:from-red-500 hover:to-red-700 text-white font-extrabold text-xs sm:text-sm rounded-2xl shadow-md transition-all flex items-center gap-2 cursor-pointer border border-red-500/30 active:scale-[0.98]"
             >
               <LogOut className="w-4 h-4" />
-              <span>Tutup Shift Kasir (Close Shift)</span>
+              <span>Tutup Shift Kasir</span>
             </button>
           ) : (
             <button
               type="button"
               onClick={() => setIsStartShiftModalOpen(true)}
-              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-800 hover:from-emerald-500 hover:to-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer border border-emerald-500/40"
+              className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-800 hover:from-emerald-500 hover:to-emerald-700 text-white font-extrabold text-xs sm:text-sm rounded-2xl shadow-md transition-all flex items-center gap-2 cursor-pointer border border-emerald-500/30 active:scale-[0.98]"
             >
               <Clock className="w-4 h-4" />
               <span>Buka Shift Kasir Baru</span>

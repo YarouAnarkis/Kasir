@@ -121,11 +121,11 @@ export default function Navbar() {
   const badge = getRoleBadge(user?.role);
 
   return (
-    <header className="sticky top-0 z-40 glass-header text-stone-100 border-b border-amber-950/60 shadow-lg no-print">
+    <header className="sticky top-0 z-50 bg-stone-950/95 backdrop-blur-md text-stone-100 border-b border-stone-800/80 shadow-xl no-print">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-20 gap-2">
           {/* Brand Logo */}
-          <Link href="/" className="flex items-center gap-2.5 sm:gap-3 group shrink-0">
+          <Link href="/" prefetch={true} className="flex items-center gap-2.5 sm:gap-3 group shrink-0">
             <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-amber-600 to-amber-800 flex items-center justify-center text-amber-100 shadow-md group-hover:scale-105 group-hover:from-amber-500 group-hover:to-amber-700 transition-all duration-300 border border-amber-500/30">
               <Coffee className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
@@ -140,7 +140,7 @@ export default function Navbar() {
           </Link>
 
           {/* Navigation Links */}
-          <nav className="flex items-center bg-stone-900/80 p-1 sm:p-1.5 rounded-2xl border border-stone-800/80 shadow-inner overflow-x-auto max-w-full">
+          <nav className="flex items-center bg-stone-900/90 p-1 sm:p-1.5 rounded-2xl border border-stone-800 shadow-inner overflow-x-auto max-w-full">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
@@ -148,13 +148,14 @@ export default function Navbar() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 whitespace-nowrap ${
+                  prefetch={true}
+                  className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 whitespace-nowrap cursor-pointer ${
                     isActive
-                      ? "bg-gradient-to-r from-amber-700 to-amber-800 text-white shadow-md shadow-amber-950/40 border border-amber-600/40"
-                      : "text-stone-300 hover:text-stone-100 hover:bg-stone-800/60"
+                      ? "bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-md shadow-amber-950/40 border border-amber-500/40"
+                      : "text-stone-300 hover:text-stone-100 hover:bg-stone-800/80"
                   }`}
                 >
-                  <Icon className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isActive ? "text-amber-300" : "text-stone-400"}`} />
+                  <Icon className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isActive ? "text-amber-200" : "text-stone-400"}`} />
                   <span className="inline">{item.name}</span>
                 </Link>
               );
