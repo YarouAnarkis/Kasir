@@ -1391,7 +1391,68 @@ export default function KasirPOS({
               <div className="pt-3 border-t border-stone-100 flex gap-2 no-print">
                 <button
                   type="button"
-                  onClick={() => window.print()}
+                  onClick={() => {
+                    const shiftEl = document.getElementById("printable-shift-receipt");
+                    if (!shiftEl) { window.print(); return; }
+                    const shiftHtml = shiftEl.innerHTML;
+                    
+                    let iframe = document.getElementById("print-iframe-shift-58mm") as HTMLIFrameElement | null;
+                    if (iframe) {
+                      document.body.removeChild(iframe);
+                    }
+                    iframe = document.createElement("iframe");
+                    iframe.id = "print-iframe-shift-58mm";
+                    iframe.style.position = "fixed";
+                    iframe.style.right = "0";
+                    iframe.style.bottom = "0";
+                    iframe.style.width = "0";
+                    iframe.style.height = "0";
+                    iframe.style.border = "0";
+                    iframe.style.opacity = "0";
+                    document.body.appendChild(iframe);
+
+                    const doc = iframe.contentWindow?.document;
+                    if (!doc) return;
+
+                    doc.open();
+                    doc.write(`<!DOCTYPE html>
+<html lang="id"><head>
+<meta charset="UTF-8"/>
+<title>Rekap Tutup Shift</title>
+<style>
+  @page { size: 58mm auto; margin: 0mm; }
+  *, *::before, *::after {
+    box-sizing: border-box !important; margin: 0; padding: 0;
+    page-break-inside: avoid !important; break-inside: avoid !important;
+  }
+  html, body {
+    width: 58mm !important; max-width: 58mm !important; margin: 0 auto !important; padding: 0 !important;
+    font-family: 'Courier New', Courier, monospace !important; font-size: 9px !important; line-height: 1.25 !important;
+    color: #000 !important; background: #fff !important; overflow: hidden !important;
+    -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
+  }
+  .receipt-wrap { width: 58mm !important; max-width: 58mm !important; padding: 2mm 2mm 4mm 2mm !important; margin: 0 auto !important; }
+  .no-print, svg { display: none !important; }
+  .flex { display: flex; } .justify-between { justify-content: space-between; } .items-center { align-items: center; }
+  .text-center { text-align: center; } .font-black { font-weight: 900; } .font-bold { font-weight: 700; }
+  .text-base { font-size: 11px; } .text-sm { font-size: 10px; } .text-xs { font-size: 8.5px; }
+  .space-y-1\\.5 > * + * { margin-top: 2px; } .space-y-4 > * + * { margin-top: 6px; }
+  .border-b { border-bottom: 1px dashed #000; } .border-t { border-top: 1px dashed #000; }
+  .border-stone-200, .border-stone-100 { border-color: #000; }
+  .pb-3 { padding-bottom: 4px; } .pt-2 { padding-top: 3px; } .pt-3 { padding-top: 4px; }
+  .text-emerald-700, .text-red-600, .text-stone-800, .text-stone-900, .text-stone-950, .text-stone-500 { color: #000 !important; }
+  .font-mono { font-family: 'Courier New', Courier, monospace; }
+</style></head><body>
+<div class="receipt-wrap">${shiftHtml}</div>
+</body></html>`);
+                    doc.close();
+
+                    setTimeout(() => {
+                      iframe?.contentWindow?.focus();
+                      iframe?.contentWindow?.print();
+                    }, 250);
+                  }}
+
                   className="flex-1 py-2.5 bg-stone-900 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Printer className="w-4 h-4 text-amber-400" />

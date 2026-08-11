@@ -50,8 +50,138 @@ export default function ReceiptModal({ receipt, onClose }: ReceiptModalProps) {
   if (!receipt) return null;
 
   const handlePrint = () => {
-    window.print();
+    const receiptEl = document.getElementById("printable-receipt");
+    if (!receiptEl) { window.print(); return; }
+
+    const receiptHtml = receiptEl.innerHTML;
+
+    // Use hidden iframe to avoid popup blocking and window scaling issues
+    let iframe = document.getElementById("print-iframe-58mm") as HTMLIFrameElement | null;
+    if (iframe) {
+      document.body.removeChild(iframe);
+    }
+    iframe = document.createElement("iframe");
+    iframe.id = "print-iframe-58mm";
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.style.opacity = "0";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+
+    doc.open();
+    doc.write(`<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Struk - #${strukHash}</title>
+  <style>
+    @page {
+      size: 58mm auto;
+      margin: 0mm;
+    }
+    *, *::before, *::after {
+      box-sizing: border-box !important;
+      margin: 0;
+      padding: 0;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      page-break-before: avoid !important;
+      page-break-after: avoid !important;
+      break-before: avoid !important;
+      break-after: avoid !important;
+    }
+    html, body {
+      width: 58mm !important;
+      max-width: 58mm !important;
+      margin: 0 auto !important;
+      padding: 0 !important;
+      background: #ffffff !important;
+      color: #000000 !important;
+      font-family: 'Courier New', Courier, monospace !important;
+      font-size: 9px !important;
+      line-height: 1.25 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      overflow: hidden !important;
+    }
+    .receipt-wrap {
+      width: 58mm !important;
+      max-width: 58mm !important;
+      padding: 2mm 2mm 4mm 2mm !important;
+      margin: 0 auto !important;
+    }
+    .no-print, button, header, nav, footer, aside, svg {
+      display: none !important;
+    }
+    .text-center { text-align: center; }
+    .font-black, .font-extrabold { font-weight: 900; }
+    .font-bold { font-weight: 700; }
+    .text-sm { font-size: 10px; }
+    .text-xs { font-size: 8.5px; }
+    .uppercase { text-transform: uppercase; }
+    .tracking-widest { letter-spacing: 0.03em; }
+    .flex { display: flex; }
+    .justify-between { justify-content: space-between; }
+    .items-center { align-items: center; }
+    .space-y-1 > * + * { margin-top: 1.5px; }
+    .space-y-2 > * + * { margin-top: 3px; }
+    .space-y-0\\.5 > * + * { margin-top: 1px; }
+    .space-y-2\\.5 > * + * { margin-top: 3px; }
+    .pb-2 { padding-bottom: 2px; }
+    .pb-10 { padding-bottom: 0px; }
+    .pb-1 { padding-bottom: 1.5px; }
+    .pt-1 { padding-top: 1.5px; }
+    .pt-1\\.5 { padding-top: 2px; }
+    .my-2 { margin-top: 3px; margin-bottom: 3px; }
+    .mt-1 { margin-top: 1.5px; }
+    .mt-2 { margin-top: 3px; }
+    .mb-1 { margin-bottom: 1.5px; }
+    .p-1\\.5, .p-2 { padding: 2px; }
+    .px-1 { padding-left: 1.5px; padding-right: 1.5px; }
+    .px-1\\.5 { padding-left: 2px; padding-right: 2px; }
+    .py-0\\.5 { padding-top: 1px; padding-bottom: 1px; }
+    .border-t { border-top: 1px dashed #000; }
+    .border-b { border-bottom: 1px dashed #000; }
+    .border-dashed { border-style: dashed; }
+    .border-stone-400, .border-amber-200, .border-amber-300 { border-color: #000; }
+    .border { border: 1px solid #000; }
+    .rounded, .rounded-xl, .rounded-2xl, .rounded-t-xl, .rounded-3xl { border-radius: 0px; }
+    .text-stone-950, .text-stone-900, .text-stone-800, .text-stone-700, .text-stone-600 { color: #000 !important; }
+    .text-emerald-800, .text-amber-950, .text-amber-900 { color: #000 !important; font-weight: 700; }
+    .line-through { text-decoration: line-through; }
+    .italic { font-style: italic; }
+    .bg-amber-100\\/70, .bg-amber-100\\/80, .bg-amber-50, .bg-amber-200\\/50 { background: transparent !important; }
+    .w-44 { width: 90px; }
+    .h-9 { height: 16px; }
+    .mx-auto { margin-left: auto; margin-right: auto; }
+    .shadow-sm, .shadow-2xl { box-shadow: none !important; }
+    .text-\\[9px\\]  { font-size: 8px; }
+    .text-\\[10px\\] { font-size: 8.5px; }
+    .text-\\[11px\\] { font-size: 9px; }
+    .text-\\[12px\\] { font-size: 9.5px; }
+  </style>
+</head>
+<body>
+  <div class="receipt-wrap">
+    ${receiptHtml}
+  </div>
+</body>
+</html>`);
+    doc.close();
+
+    setTimeout(() => {
+      iframe?.contentWindow?.focus();
+      iframe?.contentWindow?.print();
+    }, 250);
   };
+
+
 
   const formattedDate = new Date(receipt.tanggal).toLocaleString("id-ID", {
     dateStyle: "medium",
