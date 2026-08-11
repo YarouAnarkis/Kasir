@@ -1392,9 +1392,53 @@ export default function KasirPOS({
                 <button
                   type="button"
                   onClick={() => {
-                    const shiftEl = document.getElementById("printable-shift-receipt");
-                    if (!shiftEl) { window.print(); return; }
-                    const shiftHtml = shiftEl.innerHTML;
+                    if (!closedShiftSummary) return;
+                    const dateStr = new Date(closedShiftSummary.waktuTutup).toLocaleString("id-ID");
+                    const shiftHtml = `<!DOCTYPE html>
+<html lang="id"><head>
+<meta charset="UTF-8"/>
+<title>Rekap Tutup Shift</title>
+<style>
+  @page { size: 58mm auto; margin: 0mm; }
+  *, *::before, *::after { box-sizing: border-box !important; margin: 0; padding: 0; page-break-inside: avoid !important; }
+  html, body {
+    width: 100% !important; max-width: 58mm !important; margin: 0 auto !important; padding: 0 !important;
+    font-family: 'Courier New', Courier, monospace !important; font-size: 12px !important; font-weight: 600 !important;
+    color: #000 !important; background: #fff !important; line-height: 1.35 !important;
+  }
+  .receipt-container { width: 100% !important; max-width: 58mm !important; padding: 4px 6px 12px 6px !important; margin: 0 auto !important; }
+  .divider { border-top: 1px dashed #000 !important; margin: 6px 0 !important; width: 100% !important; }
+</style></head><body>
+<div class="receipt-container">
+  <div style="text-align: center; margin-bottom: 4px;">
+    <h2 style="font-size: 15px; font-weight: 900;">LEMBAR REKAP TUTUP SHIFT</h2>
+    <p style="font-size: 10.5px; margin-top: 2px;">${dateStr}</p>
+  </div>
+  <div class="divider"></div>
+  <div style="font-size: 11.5px; line-height: 1.4;">
+    <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+      <span>Nama Kasir:</span><span style="font-weight: bold;">${closedShiftSummary.namaKasir}</span>
+    </div>
+    <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+      <span>Modal Awal Laci:</span><span>Rp ${(closedShiftSummary.modalAwal || 0).toLocaleString("id-ID")}</span>
+    </div>
+    <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+      <span>Total Tunai Sistem:</span><span style="font-weight: bold;">Rp ${(closedShiftSummary.totalTunaiSistem || 0).toLocaleString("id-ID")}</span>
+    </div>
+    <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+      <span>Total QRIS Sistem:</span><span>Rp ${(closedShiftSummary.totalQrisSistem || 0).toLocaleString("id-ID")}</span>
+    </div>
+    <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+      <span>Fisik Uang Laci:</span><span style="font-weight: bold;">Rp ${(closedShiftSummary.hitungFisikTunai || 0).toLocaleString("id-ID")}</span>
+    </div>
+    <div class="divider"></div>
+    <div style="display: flex; justify-content: space-between; font-size: 13.5px; font-weight: 900; margin-top: 4px;">
+      <span>Selisih Kas:</span>
+      <span>Rp ${(closedShiftSummary.selisihKas || 0).toLocaleString("id-ID")}</span>
+    </div>
+  </div>
+</div>
+</body></html>`;
                     
                     let iframe = document.getElementById("print-iframe-shift-58mm") as HTMLIFrameElement | null;
                     if (iframe) {
@@ -1415,36 +1459,7 @@ export default function KasirPOS({
                     if (!doc) return;
 
                     doc.open();
-                    doc.write(`<!DOCTYPE html>
-<html lang="id"><head>
-<meta charset="UTF-8"/>
-<title>Rekap Tutup Shift</title>
-<style>
-  @page { size: 58mm auto; margin: 0mm; }
-  *, *::before, *::after {
-    box-sizing: border-box !important; margin: 0; padding: 0;
-    page-break-inside: avoid !important; break-inside: avoid !important;
-  }
-  html, body {
-    width: 100% !important; max-width: 58mm !important; margin: 0 auto !important; padding: 0 !important;
-    font-family: 'Courier New', Courier, monospace !important; font-size: 11.5px !important; font-weight: 600 !important; line-height: 1.35 !important;
-    color: #000 !important; background: #fff !important; overflow: hidden !important;
-    -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
-  }
-  .receipt-wrap { width: 100% !important; max-width: 58mm !important; padding: 3mm 2mm 6mm 2mm !important; margin: 0 auto !important; }
-  .no-print, svg { display: none !important; }
-  .flex { display: flex !important; } .justify-between { justify-content: space-between !important; } .items-center { align-items: center !important; }
-  .text-center { text-align: center; } .font-black { font-weight: 900 !important; } .font-bold { font-weight: 700 !important; }
-  .text-base { font-size: 14px !important; font-weight: 900 !important; } .text-sm { font-size: 12.5px !important; } .text-xs { font-size: 11.5px !important; }
-  .space-y-1\\.5 > * + * { margin-top: 3px; } .space-y-4 > * + * { margin-top: 8px; }
-  .border-b { border-bottom: 1px dashed #000 !important; } .border-t { border-top: 1px dashed #000 !important; }
-  .border-stone-200, .border-stone-100 { border-color: #000 !important; }
-  .pb-3 { padding-bottom: 5px; } .pt-2 { padding-top: 4px; } .pt-3 { padding-top: 5px; }
-  .text-emerald-700, .text-red-600, .text-stone-800, .text-stone-900, .text-stone-950, .text-stone-500 { color: #000 !important; }
-  .font-mono { font-family: 'Courier New', Courier, monospace; }
-</style></head><body>
-<div class="receipt-wrap">${shiftHtml}</div>
-</body></html>`);
+                    doc.write(shiftHtml);
                     doc.close();
 
                     setTimeout(() => {

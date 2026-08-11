@@ -50,12 +50,206 @@ export default function ReceiptModal({ receipt, onClose }: ReceiptModalProps) {
   if (!receipt) return null;
 
   const handlePrint = () => {
-    const receiptEl = document.getElementById("printable-receipt");
-    if (!receiptEl) { window.print(); return; }
+    const isKaryawan = receipt.jenisTransaksi === "karyawan";
+    const strukHash = receipt.nomorStruk.slice(-8).toUpperCase();
+    const formattedDate = new Date(receipt.tanggal).toLocaleString("id-ID", {
+      dateStyle: "medium",
+      timeStyle: "medium",
+    });
 
-    const receiptHtml = receiptEl.innerHTML;
+    const itemsHtml = receipt.detailTransaksi
+      .map(
+        (item) => `
+        <div style="margin-bottom: 5px;">
+          <div style="display: flex; justify-content: space-between; font-weight: 700; font-size: 12.5px;">
+            <span style="word-break: break-word; padding-right: 4px;">${item.namaMenu}${item.namaPromo ? ` [${item.namaPromo}]` : ''}</span>
+            <span style="white-space: nowrap;">Rp ${item.subtotal.toLocaleString("id-ID")}</span>
+          </div>
+          <div style="font-size: 11.5px; font-weight: normal; color: #000; margin-top: 1px;">
+            ${item.jumlah} x Rp ${item.hargaSatuan.toLocaleString("id-ID")}
+          </div>
+        </div>
+      `
+      )
+      .join("");
 
-    // Use hidden iframe to avoid popup blocking and window scaling issues
+    let customerOrMemberHtml = "";
+    if (receipt.member || receipt.namaPelanggan) {
+      const name = receipt.namaPelanggan || receipt.member?.nama || "";
+      const tier = receipt.member?.tipeMember ? ` (${receipt.member.tipeMember})` : "";
+      customerOrMemberHtml += `
+        <div style="display: flex; justify-content: space-between;">
+          <span>Pelanggan:</span>
+          <span style="font-weight: bold;">${name}${tier}</span>
+        </div>
+      `;
+      if (receipt.poinDiperoleh && receipt.poinDiperoleh > 0) {
+        customerOrMemberHtml += `
+          <div style="display: flex; justify-content: space-between; font-weight: bold;">
+            <span>Poin Diperoleh:</span>
+            <span>+${receipt.poinDiperoleh} Poin</span>
+          </div>
+        `;
+      }
+    }
+
+    let paymentDetailsHtml = "";
+    if (isKaryawan) {
+      paymentDetailsHtml = `
+        <div style="display: flex; justify-content: space-between;">
+          <span>Total Harga Asli:</span>
+          <span style="text-decoration: line-through;">Rp ${(receipt.totalHargaAsli || receipt.subtotal).toLocaleString("id-ID")}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 900; margin-top: 4px;">
+          <span>TOTAL:</span>
+          <span>Rp 0 (FREE ORDER)</span>
+        </div>
+      `;
+    } else {
+      paymentDetailsHtml = `
+        <div style="display: flex; justify-content: space-between;">
+          <span>Subtotal:</span>
+          <span>Rp ${receipt.subtotal.toLocaleString("id-ID")}</span>
+        </div>
+        ${
+          receipt.pajak > 0
+            ? `<div style="display: flex; justify-content: space-between;">
+                <span>Pajak Resto:</span>
+                <span>Rp ${receipt.pajak.toLocaleString("id-ID")}</span>
+               </div>`
+            : ""
+        }
+        <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 900; margin-top: 4px; border-top: 1px dashed #000; padding-top: 4px;">
+          <span>TOTAL HARGA:</span>
+          <span>Rp ${receipt.totalHarga.toLocaleString("id-ID")}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-top: 2px;">
+          <span>Dibayar (Tunai):</span>
+          <span>Rp ${receipt.dibayar.toLocaleString("id-ID")}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-weight: bold; margin-top: 2px;">
+          <span>Kembalian:</span>
+          <span>Rp ${receipt.kembalian.toLocaleString("id-ID")}</span>
+        </div>
+      `;
+    }
+
+    const htmlContent = `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Struk - #${strukHash}</title>
+  <style>
+    @page {
+      size: 58mm auto;
+      margin: 0mm;
+    }
+    *, *::before, *::after {
+      box-sizing: border-box !important;
+      margin: 0;
+      padding: 0;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+    html, body {
+      width: 100% !important;
+      max-width: 58mm !important;
+      margin: 0 auto !important;
+      padding: 0 !important;
+      background: #ffffff !important;
+      color: #000000 !important;
+      font-family: 'Courier New', Courier, monospace !important;
+      font-size: 12px !important;
+      font-weight: 600 !important;
+      line-height: 1.35 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .receipt-container {
+      width: 100% !important;
+      max-width: 58mm !important;
+      padding: 4px 6px 12px 6px !important;
+      margin: 0 auto !important;
+    }
+    .divider {
+      border-top: 1px dashed #000 !important;
+      margin: 6px 0 !important;
+      width: 100% !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="receipt-container">
+    <div style="text-align: center; margin-bottom: 4px;">
+      <h2 style="font-size: 16px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px;">KASIR COFFEE SHOP</h2>
+      <p style="font-size: 10.5px; font-weight: normal; margin-top: 2px;">Jl. Kopi Harapan No. 88, Jakarta</p>
+      <p style="font-size: 10.5px; font-weight: normal;">Telp: 0812-3456-7890</p>
+      ${isKaryawan ? `<div style="border: 1px solid #000; padding: 2px; margin-top: 4px; font-size: 11px; font-weight: bold;">*** STRUK FREE ORDER KARYAWAN ***</div>` : ""}
+    </div>
+
+    <div class="divider"></div>
+
+    <div style="font-size: 11.5px; line-height: 1.4;">
+      <div style="display: flex; justify-content: space-between;">
+        <span>No. Struk:</span>
+        <span style="font-weight: bold;">#${strukHash}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between;">
+        <span>Waktu:</span>
+        <span>${formattedDate}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between;">
+        <span>Kasir:</span>
+        <span style="font-weight: bold;">${receipt.namaKasir || "Kasir Cafe"}</span>
+      </div>
+      ${isKaryawan ? `
+        <div style="display: flex; justify-content: space-between;">
+          <span>Penerima:</span>
+          <span style="font-weight: bold;">${receipt.namaKaryawan || "Karyawan Store"}</span>
+        </div>
+      ` : `
+        <div style="display: flex; justify-content: space-between;">
+          <span>Metode Bayar:</span>
+          <span style="font-weight: bold;">${receipt.metodePembayaran || "TUNAI"}</span>
+        </div>
+      `}
+      ${customerOrMemberHtml}
+    </div>
+
+    <div class="divider"></div>
+
+    <div>
+      <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: bold; border-bottom: 1px dashed #000; padding-bottom: 3px; margin-bottom: 5px;">
+        <span>ITEM MENU</span>
+        <span>SUBTOTAL</span>
+      </div>
+      ${itemsHtml}
+    </div>
+
+    <div class="divider"></div>
+
+    <div style="font-size: 12px; line-height: 1.4;">
+      ${paymentDetailsHtml}
+    </div>
+
+    <div class="divider"></div>
+
+    <div style="text-align: center; margin-top: 8px;">
+      <div style="font-family: monospace; font-size: 11px; border: 1px solid #000; width: 120px; margin: 0 auto; padding: 2px 0;">
+        ||||| | |||| ||| ||||||
+      </div>
+      <div style="font-size: 10px; margin-top: 2px;">TX-${strukHash}-2026</div>
+      <p style="font-size: 11.5px; font-weight: bold; margin-top: 6px;">
+        ${isKaryawan ? "Selamat Menikmati Jatah Konsumsi!" : "Terima kasih atas kunjungan Anda!"}
+      </p>
+      <p style="font-size: 10px; font-style: italic; margin-top: 2px;">
+        Selamat menikmati racikan kopi favorit Anda
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+
     let iframe = document.getElementById("print-iframe-58mm") as HTMLIFrameElement | null;
     if (iframe) {
       document.body.removeChild(iframe);
@@ -75,107 +269,7 @@ export default function ReceiptModal({ receipt, onClose }: ReceiptModalProps) {
     if (!doc) return;
 
     doc.open();
-    doc.write(`<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8"/>
-  <title>Struk - #${strukHash}</title>
-  <style>
-    @page {
-      size: 58mm auto;
-      margin: 0mm;
-    }
-    *, *::before, *::after {
-      box-sizing: border-box !important;
-      margin: 0;
-      padding: 0;
-      page-break-inside: avoid !important;
-      break-inside: avoid !important;
-      page-break-before: avoid !important;
-      page-break-after: avoid !important;
-      break-before: avoid !important;
-      break-after: avoid !important;
-    }
-    html, body {
-      width: 100% !important;
-      max-width: 58mm !important;
-      margin: 0 auto !important;
-      padding: 0 !important;
-      background: #ffffff !important;
-      color: #000000 !important;
-      font-family: 'Courier New', Courier, monospace !important;
-      font-size: 11.5px !important;
-      font-weight: 600 !important;
-      line-height: 1.35 !important;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-      overflow: hidden !important;
-    }
-    .receipt-wrap {
-      width: 100% !important;
-      max-width: 58mm !important;
-      padding: 3mm 2mm 6mm 2mm !important;
-      margin: 0 auto !important;
-    }
-    .no-print, button, header, nav, footer, aside, svg {
-      display: none !important;
-    }
-    .text-center { text-align: center; }
-    .font-black, .font-extrabold { font-weight: 900 !important; }
-    .font-bold { font-weight: 700 !important; }
-    .uppercase { text-transform: uppercase; }
-    .tracking-widest { letter-spacing: 0.05em; }
-    .flex { display: flex !important; }
-    .justify-between { justify-content: space-between !important; }
-    .items-center { align-items: center !important; }
-    .space-y-1 > * + * { margin-top: 2.5px; }
-    .space-y-2 > * + * { margin-top: 4px; }
-    .space-y-0\\.5 > * + * { margin-top: 1.5px; }
-    .space-y-2\\.5 > * + * { margin-top: 4px; }
-    .pb-2 { padding-bottom: 3px; }
-    .pb-10 { padding-bottom: 0px; }
-    .pb-1 { padding-bottom: 2px; }
-    .pt-1 { padding-top: 2.5px; }
-    .pt-1\\.5 { padding-top: 3px; }
-    .my-2 { margin-top: 4px; margin-bottom: 4px; }
-    .mt-1 { margin-top: 2px; }
-    .mt-2 { margin-top: 4px; }
-    .mb-1 { margin-bottom: 2px; }
-    .p-1\\.5, .p-2 { padding: 3px; }
-    .px-1 { padding-left: 2px; padding-right: 2px; }
-    .px-1\\.5 { padding-left: 3px; padding-right: 3px; }
-    .py-0\\.5 { padding-top: 1.5px; padding-bottom: 1.5px; }
-    .border-t { border-top: 1px dashed #000 !important; }
-    .border-b { border-bottom: 1px dashed #000 !important; }
-    .border-dashed { border-style: dashed !important; }
-    .border-stone-400, .border-amber-200, .border-amber-300 { border-color: #000 !important; }
-    .border { border: 1px solid #000 !important; }
-    .rounded, .rounded-xl, .rounded-2xl, .rounded-t-xl, .rounded-3xl { border-radius: 0px !important; }
-    .text-stone-950, .text-stone-900, .text-stone-800, .text-stone-700, .text-stone-600 { color: #000 !important; }
-    .text-emerald-800, .text-amber-950, .text-amber-900 { color: #000 !important; font-weight: 800 !important; }
-    .line-through { text-decoration: line-through; }
-    .italic { font-style: italic; }
-    .bg-amber-100\\/70, .bg-amber-100\\/80, .bg-amber-50, .bg-amber-200\\/50 { background: transparent !important; }
-    .w-44 { width: 100% !important; max-width: 140px !important; }
-    .h-9 { height: 22px !important; font-size: 11px !important; }
-    .mx-auto { margin-left: auto; margin-right: auto; }
-    .shadow-sm, .shadow-2xl { box-shadow: none !important; }
-    /* Clear thermal font sizes - bold & legible */
-    .text-sm { font-size: 13px !important; font-weight: 700 !important; }
-    .text-xs { font-size: 11.5px !important; }
-    .text-\\[9px\\]  { font-size: 10px !important; }
-    .text-\\[10px\\] { font-size: 10.5px !important; }
-    .text-\\[11px\\] { font-size: 11.5px !important; }
-    .text-\\[12px\\] { font-size: 12px !important; }
-    h2 { font-size: 15px !important; font-weight: 900 !important; letter-spacing: 1px !important; }
-  </style>
-</head>
-<body>
-  <div class="receipt-wrap">
-    ${receiptHtml}
-  </div>
-</body>
-</html>`);
+    doc.write(htmlContent);
     doc.close();
 
     setTimeout(() => {
