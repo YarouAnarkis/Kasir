@@ -97,74 +97,77 @@ export default function ReceiptModal({ receipt, onClose }: ReceiptModalProps) {
       break-after: avoid !important;
     }
     html, body {
-      width: 58mm !important;
+      width: 100% !important;
       max-width: 58mm !important;
       margin: 0 auto !important;
       padding: 0 !important;
       background: #ffffff !important;
       color: #000000 !important;
       font-family: 'Courier New', Courier, monospace !important;
-      font-size: 9px !important;
-      line-height: 1.25 !important;
+      font-size: 11.5px !important;
+      font-weight: 600 !important;
+      line-height: 1.35 !important;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
       overflow: hidden !important;
     }
     .receipt-wrap {
-      width: 58mm !important;
+      width: 100% !important;
       max-width: 58mm !important;
-      padding: 2mm 2mm 4mm 2mm !important;
+      padding: 3mm 2mm 6mm 2mm !important;
       margin: 0 auto !important;
     }
     .no-print, button, header, nav, footer, aside, svg {
       display: none !important;
     }
     .text-center { text-align: center; }
-    .font-black, .font-extrabold { font-weight: 900; }
-    .font-bold { font-weight: 700; }
-    .text-sm { font-size: 10px; }
-    .text-xs { font-size: 8.5px; }
+    .font-black, .font-extrabold { font-weight: 900 !important; }
+    .font-bold { font-weight: 700 !important; }
     .uppercase { text-transform: uppercase; }
-    .tracking-widest { letter-spacing: 0.03em; }
-    .flex { display: flex; }
-    .justify-between { justify-content: space-between; }
-    .items-center { align-items: center; }
-    .space-y-1 > * + * { margin-top: 1.5px; }
-    .space-y-2 > * + * { margin-top: 3px; }
-    .space-y-0\\.5 > * + * { margin-top: 1px; }
-    .space-y-2\\.5 > * + * { margin-top: 3px; }
-    .pb-2 { padding-bottom: 2px; }
+    .tracking-widest { letter-spacing: 0.05em; }
+    .flex { display: flex !important; }
+    .justify-between { justify-content: space-between !important; }
+    .items-center { align-items: center !important; }
+    .space-y-1 > * + * { margin-top: 2.5px; }
+    .space-y-2 > * + * { margin-top: 4px; }
+    .space-y-0\\.5 > * + * { margin-top: 1.5px; }
+    .space-y-2\\.5 > * + * { margin-top: 4px; }
+    .pb-2 { padding-bottom: 3px; }
     .pb-10 { padding-bottom: 0px; }
-    .pb-1 { padding-bottom: 1.5px; }
-    .pt-1 { padding-top: 1.5px; }
-    .pt-1\\.5 { padding-top: 2px; }
-    .my-2 { margin-top: 3px; margin-bottom: 3px; }
-    .mt-1 { margin-top: 1.5px; }
-    .mt-2 { margin-top: 3px; }
-    .mb-1 { margin-bottom: 1.5px; }
-    .p-1\\.5, .p-2 { padding: 2px; }
-    .px-1 { padding-left: 1.5px; padding-right: 1.5px; }
-    .px-1\\.5 { padding-left: 2px; padding-right: 2px; }
-    .py-0\\.5 { padding-top: 1px; padding-bottom: 1px; }
-    .border-t { border-top: 1px dashed #000; }
-    .border-b { border-bottom: 1px dashed #000; }
-    .border-dashed { border-style: dashed; }
-    .border-stone-400, .border-amber-200, .border-amber-300 { border-color: #000; }
-    .border { border: 1px solid #000; }
-    .rounded, .rounded-xl, .rounded-2xl, .rounded-t-xl, .rounded-3xl { border-radius: 0px; }
+    .pb-1 { padding-bottom: 2px; }
+    .pt-1 { padding-top: 2.5px; }
+    .pt-1\\.5 { padding-top: 3px; }
+    .my-2 { margin-top: 4px; margin-bottom: 4px; }
+    .mt-1 { margin-top: 2px; }
+    .mt-2 { margin-top: 4px; }
+    .mb-1 { margin-bottom: 2px; }
+    .p-1\\.5, .p-2 { padding: 3px; }
+    .px-1 { padding-left: 2px; padding-right: 2px; }
+    .px-1\\.5 { padding-left: 3px; padding-right: 3px; }
+    .py-0\\.5 { padding-top: 1.5px; padding-bottom: 1.5px; }
+    .border-t { border-top: 1px dashed #000 !important; }
+    .border-b { border-bottom: 1px dashed #000 !important; }
+    .border-dashed { border-style: dashed !important; }
+    .border-stone-400, .border-amber-200, .border-amber-300 { border-color: #000 !important; }
+    .border { border: 1px solid #000 !important; }
+    .rounded, .rounded-xl, .rounded-2xl, .rounded-t-xl, .rounded-3xl { border-radius: 0px !important; }
     .text-stone-950, .text-stone-900, .text-stone-800, .text-stone-700, .text-stone-600 { color: #000 !important; }
-    .text-emerald-800, .text-amber-950, .text-amber-900 { color: #000 !important; font-weight: 700; }
+    .text-emerald-800, .text-amber-950, .text-amber-900 { color: #000 !important; font-weight: 800 !important; }
     .line-through { text-decoration: line-through; }
     .italic { font-style: italic; }
     .bg-amber-100\\/70, .bg-amber-100\\/80, .bg-amber-50, .bg-amber-200\\/50 { background: transparent !important; }
-    .w-44 { width: 90px; }
-    .h-9 { height: 16px; }
+    .w-44 { width: 100% !important; max-width: 140px !important; }
+    .h-9 { height: 22px !important; font-size: 11px !important; }
     .mx-auto { margin-left: auto; margin-right: auto; }
     .shadow-sm, .shadow-2xl { box-shadow: none !important; }
-    .text-\\[9px\\]  { font-size: 8px; }
-    .text-\\[10px\\] { font-size: 8.5px; }
-    .text-\\[11px\\] { font-size: 9px; }
-    .text-\\[12px\\] { font-size: 9.5px; }
+    /* Clear thermal font sizes - bold & legible */
+    .text-sm { font-size: 13px !important; font-weight: 700 !important; }
+    .text-xs { font-size: 11.5px !important; }
+    .text-\\[9px\\]  { font-size: 10px !important; }
+    .text-\\[10px\\] { font-size: 10.5px !important; }
+    .text-\\[11px\\] { font-size: 11.5px !important; }
+    .text-\\[12px\\] { font-size: 12px !important; }
+    h2 { font-size: 15px !important; font-weight: 900 !important; letter-spacing: 1px !important; }
   </style>
 </head>
 <body>

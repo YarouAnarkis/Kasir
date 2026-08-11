@@ -1426,20 +1426,20 @@ export default function KasirPOS({
     page-break-inside: avoid !important; break-inside: avoid !important;
   }
   html, body {
-    width: 58mm !important; max-width: 58mm !important; margin: 0 auto !important; padding: 0 !important;
-    font-family: 'Courier New', Courier, monospace !important; font-size: 9px !important; line-height: 1.25 !important;
+    width: 100% !important; max-width: 58mm !important; margin: 0 auto !important; padding: 0 !important;
+    font-family: 'Courier New', Courier, monospace !important; font-size: 11.5px !important; font-weight: 600 !important; line-height: 1.35 !important;
     color: #000 !important; background: #fff !important; overflow: hidden !important;
     -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
   }
-  .receipt-wrap { width: 58mm !important; max-width: 58mm !important; padding: 2mm 2mm 4mm 2mm !important; margin: 0 auto !important; }
+  .receipt-wrap { width: 100% !important; max-width: 58mm !important; padding: 3mm 2mm 6mm 2mm !important; margin: 0 auto !important; }
   .no-print, svg { display: none !important; }
-  .flex { display: flex; } .justify-between { justify-content: space-between; } .items-center { align-items: center; }
-  .text-center { text-align: center; } .font-black { font-weight: 900; } .font-bold { font-weight: 700; }
-  .text-base { font-size: 11px; } .text-sm { font-size: 10px; } .text-xs { font-size: 8.5px; }
-  .space-y-1\\.5 > * + * { margin-top: 2px; } .space-y-4 > * + * { margin-top: 6px; }
-  .border-b { border-bottom: 1px dashed #000; } .border-t { border-top: 1px dashed #000; }
-  .border-stone-200, .border-stone-100 { border-color: #000; }
-  .pb-3 { padding-bottom: 4px; } .pt-2 { padding-top: 3px; } .pt-3 { padding-top: 4px; }
+  .flex { display: flex !important; } .justify-between { justify-content: space-between !important; } .items-center { align-items: center !important; }
+  .text-center { text-align: center; } .font-black { font-weight: 900 !important; } .font-bold { font-weight: 700 !important; }
+  .text-base { font-size: 14px !important; font-weight: 900 !important; } .text-sm { font-size: 12.5px !important; } .text-xs { font-size: 11.5px !important; }
+  .space-y-1\\.5 > * + * { margin-top: 3px; } .space-y-4 > * + * { margin-top: 8px; }
+  .border-b { border-bottom: 1px dashed #000 !important; } .border-t { border-top: 1px dashed #000 !important; }
+  .border-stone-200, .border-stone-100 { border-color: #000 !important; }
+  .pb-3 { padding-bottom: 5px; } .pt-2 { padding-top: 4px; } .pt-3 { padding-top: 5px; }
   .text-emerald-700, .text-red-600, .text-stone-800, .text-stone-900, .text-stone-950, .text-stone-500 { color: #000 !important; }
   .font-mono { font-family: 'Courier New', Courier, monospace; }
 </style></head><body>
