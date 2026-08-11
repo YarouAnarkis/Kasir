@@ -1403,19 +1403,19 @@ export default function KasirPOS({
   *, *::before, *::after { box-sizing: border-box !important; margin: 0; padding: 0; page-break-inside: avoid !important; }
   html, body {
     width: 100% !important; max-width: 58mm !important; margin: 0 auto !important; padding: 0 !important;
-    font-family: 'Courier New', Courier, monospace !important; font-size: 12px !important; font-weight: 600 !important;
-    color: #000 !important; background: #fff !important; line-height: 1.35 !important;
+    font-family: 'Courier New', Courier, monospace !important; font-size: 10px !important; font-weight: 600 !important;
+    color: #000 !important; background: #fff !important; line-height: 1.3 !important;
   }
-  .receipt-container { width: 100% !important; max-width: 58mm !important; padding: 4px 6px 12px 6px !important; margin: 0 auto !important; }
-  .divider { border-top: 1px dashed #000 !important; margin: 6px 0 !important; width: 100% !important; }
+  .receipt-container { width: 48mm !important; max-width: 48mm !important; padding: 4px 0px 10px 0px !important; margin: 0 auto !important; }
+  .divider { border-top: 1px dashed #000 !important; margin: 4px 0 !important; width: 100% !important; }
 </style></head><body>
 <div class="receipt-container">
   <div style="text-align: center; margin-bottom: 4px;">
-    <h2 style="font-size: 15px; font-weight: 900;">LEMBAR REKAP TUTUP SHIFT</h2>
-    <p style="font-size: 10.5px; margin-top: 2px;">${dateStr}</p>
+    <h2 style="font-size: 13px; font-weight: 900;">LEMBAR REKAP TUTUP SHIFT</h2>
+    <p style="font-size: 9px; margin-top: 2px;">${dateStr}</p>
   </div>
   <div class="divider"></div>
-  <div style="font-size: 11.5px; line-height: 1.4;">
+  <div style="font-size: 9.5px; line-height: 1.3;">
     <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
       <span>Nama Kasir:</span><span style="font-weight: bold;">${closedShiftSummary.namaKasir}</span>
     </div>
@@ -1432,7 +1432,7 @@ export default function KasirPOS({
       <span>Fisik Uang Laci:</span><span style="font-weight: bold;">Rp ${(closedShiftSummary.hitungFisikTunai || 0).toLocaleString("id-ID")}</span>
     </div>
     <div class="divider"></div>
-    <div style="display: flex; justify-content: space-between; font-size: 13.5px; font-weight: 900; margin-top: 4px;">
+    <div style="display: flex; justify-content: space-between; font-size: 11.5px; font-weight: 900; margin-top: 3px;">
       <span>Selisih Kas:</span>
       <span>Rp ${(closedShiftSummary.selisihKas || 0).toLocaleString("id-ID")}</span>
     </div>
