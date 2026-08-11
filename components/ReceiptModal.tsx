@@ -60,12 +60,12 @@ export default function ReceiptModal({ receipt, onClose }: ReceiptModalProps) {
     const itemsHtml = receipt.detailTransaksi
       .map(
         (item) => `
-        <div style="margin-bottom: 5px;">
-          <div style="display: flex; justify-content: space-between; font-weight: 700; font-size: 12.5px;">
+        <div style="margin-bottom: 4px;">
+          <div style="display: flex; justify-content: space-between; font-weight: 700; font-size: 11px;">
             <span style="word-break: break-word; padding-right: 4px;">${item.namaMenu}${item.namaPromo ? ` [${item.namaPromo}]` : ''}</span>
             <span style="white-space: nowrap;">Rp ${item.subtotal.toLocaleString("id-ID")}</span>
           </div>
-          <div style="font-size: 11.5px; font-weight: normal; color: #000; margin-top: 1px;">
+          <div style="font-size: 10px; font-weight: normal; color: #000; margin-top: 1px;">
             ${item.jumlah} x Rp ${item.hargaSatuan.toLocaleString("id-ID")}
           </div>
         </div>
@@ -100,7 +100,7 @@ export default function ReceiptModal({ receipt, onClose }: ReceiptModalProps) {
           <span>Total Harga Asli:</span>
           <span style="text-decoration: line-through;">Rp ${(receipt.totalHargaAsli || receipt.subtotal).toLocaleString("id-ID")}</span>
         </div>
-        <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 900; margin-top: 4px;">
+        <div style="display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 900; margin-top: 3px;">
           <span>TOTAL:</span>
           <span>Rp 0 (FREE ORDER)</span>
         </div>
@@ -119,7 +119,7 @@ export default function ReceiptModal({ receipt, onClose }: ReceiptModalProps) {
                </div>`
             : ""
         }
-        <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 900; margin-top: 4px; border-top: 1px dashed #000; padding-top: 4px;">
+        <div style="display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 900; margin-top: 3px; border-top: 1px dashed #000; padding-top: 3px;">
           <span>TOTAL HARGA:</span>
           <span>Rp ${receipt.totalHarga.toLocaleString("id-ID")}</span>
         </div>
@@ -159,7 +159,7 @@ export default function ReceiptModal({ receipt, onClose }: ReceiptModalProps) {
       background: #ffffff !important;
       color: #000000 !important;
       font-family: 'Courier New', Courier, monospace !important;
-      font-size: 12px !important;
+      font-size: 10.5px !important;
       font-weight: 600 !important;
       line-height: 1.35 !important;
       -webkit-print-color-adjust: exact !important;
@@ -168,12 +168,12 @@ export default function ReceiptModal({ receipt, onClose }: ReceiptModalProps) {
     .receipt-container {
       width: 100% !important;
       max-width: 58mm !important;
-      padding: 4px 6px 12px 6px !important;
+      padding: 4px 4px 10px 4px !important;
       margin: 0 auto !important;
     }
     .divider {
       border-top: 1px dashed #000 !important;
-      margin: 6px 0 !important;
+      margin: 5px 0 !important;
       width: 100% !important;
     }
   </style>
@@ -181,15 +181,15 @@ export default function ReceiptModal({ receipt, onClose }: ReceiptModalProps) {
 <body>
   <div class="receipt-container">
     <div style="text-align: center; margin-bottom: 4px;">
-      <h2 style="font-size: 16px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px;">KASIR COFFEE SHOP</h2>
-      <p style="font-size: 10.5px; font-weight: normal; margin-top: 2px;">Jl. Kopi Harapan No. 88, Jakarta</p>
-      <p style="font-size: 10.5px; font-weight: normal;">Telp: 0812-3456-7890</p>
-      ${isKaryawan ? `<div style="border: 1px solid #000; padding: 2px; margin-top: 4px; font-size: 11px; font-weight: bold;">*** STRUK FREE ORDER KARYAWAN ***</div>` : ""}
+      <h2 style="font-size: 14px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px;">KASIR COFFEE SHOP</h2>
+      <p style="font-size: 9.5px; font-weight: normal; margin-top: 2px;">Jl. Kopi Harapan No. 88, Jakarta</p>
+      <p style="font-size: 9.5px; font-weight: normal;">Telp: 0812-3456-7890</p>
+      ${isKaryawan ? `<div style="border: 1px solid #000; padding: 2px; margin-top: 4px; font-size: 10px; font-weight: bold;">*** STRUK FREE ORDER KARYAWAN ***</div>` : ""}
     </div>
 
     <div class="divider"></div>
 
-    <div style="font-size: 11.5px; line-height: 1.4;">
+    <div style="font-size: 10.5px; line-height: 1.35;">
       <div style="display: flex; justify-content: space-between;">
         <span>No. Struk:</span>
         <span style="font-weight: bold;">#${strukHash}</span>
@@ -219,7 +219,7 @@ export default function ReceiptModal({ receipt, onClose }: ReceiptModalProps) {
     <div class="divider"></div>
 
     <div>
-      <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: bold; border-bottom: 1px dashed #000; padding-bottom: 3px; margin-bottom: 5px;">
+      <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: bold; border-bottom: 1px dashed #000; padding-bottom: 2px; margin-bottom: 4px;">
         <span>ITEM MENU</span>
         <span>SUBTOTAL</span>
       </div>
@@ -228,21 +228,17 @@ export default function ReceiptModal({ receipt, onClose }: ReceiptModalProps) {
 
     <div class="divider"></div>
 
-    <div style="font-size: 12px; line-height: 1.4;">
+    <div style="font-size: 10.5px; line-height: 1.35;">
       ${paymentDetailsHtml}
     </div>
 
     <div class="divider"></div>
 
-    <div style="text-align: center; margin-top: 8px;">
-      <div style="font-family: monospace; font-size: 11px; border: 1px solid #000; width: 120px; margin: 0 auto; padding: 2px 0;">
-        ||||| | |||| ||| ||||||
-      </div>
-      <div style="font-size: 10px; margin-top: 2px;">TX-${strukHash}-2026</div>
-      <p style="font-size: 11.5px; font-weight: bold; margin-top: 6px;">
+    <div style="text-align: center; margin-top: 6px;">
+      <p style="font-size: 10.5px; font-weight: bold;">
         ${isKaryawan ? "Selamat Menikmati Jatah Konsumsi!" : "Terima kasih atas kunjungan Anda!"}
       </p>
-      <p style="font-size: 10px; font-style: italic; margin-top: 2px;">
+      <p style="font-size: 9.5px; font-style: italic; margin-top: 2px;">
         Selamat menikmati racikan kopi favorit Anda
       </p>
     </div>
@@ -556,17 +552,8 @@ export default function ReceiptModal({ receipt, onClose }: ReceiptModalProps) {
 
             <div className="border-t border-dashed border-stone-400 my-2"></div>
 
-            {/* Barcode & Footer Thermal Graphic */}
-            <div className="text-center pt-1 font-sans space-y-2">
-              <div className="space-y-0.5">
-                <div className="w-44 h-9 mx-auto bg-stone-900 text-white flex items-center justify-center rounded p-1 font-mono tracking-widest text-[9px] shadow-sm">
-                  ||||| | |||| ||| |||||| ||| |||
-                </div>
-                <div className="text-[9px] font-mono text-stone-600">
-                  TX-{strukHash}-2026
-                </div>
-              </div>
-
+            {/* Footer Thermal Message */}
+            <div className="text-center pt-1 font-sans space-y-1">
               <p className="font-bold text-stone-950 text-xs">
                 {isKaryawan ? "Selamat Menikmati Jatah Konsumsi!" : "Terima kasih atas kunjungan Anda!"}
               </p>
