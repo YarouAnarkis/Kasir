@@ -16,8 +16,60 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Kasir Coffee Shop - Point of Sale Application",
-  description: "Aplikasi Web Kasir (Point of Sale) modern untuk Coffee Shop dengan fitur Manajemen Menu, Transaksi Kasir, Cetak Struk, dan Riwayat Penjualan.",
+  metadataBase: new URL("https://kopikala.my.id"),
+  title: {
+    default: "Kopikala Coffee Shop - Aplikasi Kasir & Menu POS Modern",
+    template: "%s | Kopikala Coffee Shop",
+  },
+  description:
+    "Website resmi & Sistem Aplikasi Kasir (Point of Sale) Kopikala Coffee Shop. Nikmati berbagai varian menu kopi terbaik, promo menarik, dan kemudahan transaksi.",
+  keywords: [
+    "Kopikala",
+    "kopikala",
+    "Kopikala Coffee",
+    "Kopikala Coffee Shop",
+    "kopikala.my.id",
+    "Kasir Kopikala",
+    "Aplikasi Kasir Coffee Shop",
+    "Menu Kopikala",
+    "Point of Sale Kopikala",
+  ],
+  authors: [{ name: "Kopikala Coffee Shop", url: "https://kopikala.my.id" }],
+  creator: "Kopikala Coffee Shop",
+  publisher: "Kopikala Coffee Shop",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  alternates: {
+    canonical: "https://kopikala.my.id",
+  },
+  openGraph: {
+    title: "Kopikala Coffee Shop - Aplikasi Kasir & Menu POS Modern",
+    description:
+      "Sistem Aplikasi Kasir & Menu Online Kopikala Coffee Shop. Solusi transaksi coffee shop modern dan praktis.",
+    url: "https://kopikala.my.id",
+    siteName: "Kopikala",
+    locale: "id_ID",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Kopikala Coffee Shop - Aplikasi Kasir & Menu POS Modern",
+    description: "Sistem Aplikasi Kasir & Menu Online Kopikala Coffee Shop.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
   icons: {
     icon: [
       { url: "/favicon.svg?v=2", type: "image/svg+xml" },
@@ -25,6 +77,18 @@ export const metadata: Metadata = {
     ],
     shortcut: "/favicon.svg?v=2",
     apple: "/icon?v=2",
+  },
+};
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "CoffeeShop",
+  name: "Kopikala Coffee Shop",
+  url: "https://kopikala.my.id",
+  description: "Aplikasi Kasir (Point of Sale) & Menu Online Kopikala Coffee Shop.",
+  address: {
+    "@type": "PostalAddress",
+    addressCountry: "ID",
   },
 };
 
@@ -38,6 +102,12 @@ export default function RootLayout({
       lang="id"
       className={`${plusJakarta.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      </head>
       <body className="min-h-full flex flex-col text-stone-900 selection:bg-amber-200">
         <Navbar />
         <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
