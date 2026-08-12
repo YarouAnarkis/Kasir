@@ -10,12 +10,14 @@ const COOKIE_NAME = "kasir_session";
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
-  // Skip static files, api routes, and icons
+  // Skip static files, api routes, icons, sitemap, and robots
   if (
     path.startsWith("/_next") ||
     path.startsWith("/api") ||
     path.startsWith("/favicon") ||
-    path === "/icon"
+    path === "/icon" ||
+    path === "/sitemap.xml" ||
+    path === "/robots.txt"
   ) {
     return NextResponse.next();
   }
