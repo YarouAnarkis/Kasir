@@ -16,8 +16,8 @@ export async function middleware(request: NextRequest) {
     path.startsWith("/api") ||
     path.startsWith("/favicon") ||
     path === "/icon" ||
-    path === "/sitemap.xml" ||
-    path === "/robots.txt"
+    path.startsWith("/sitemap") ||
+    path.startsWith("/robots")
   ) {
     return NextResponse.next();
   }
@@ -69,12 +69,13 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
+     * Match all request paths except for:
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
+     * - sitemap.xml
+     * - robots.txt
      */
-    "/((?!_next/static|_next/image|favicon.ico).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sitemap|robots).*)",
   ],
 };
